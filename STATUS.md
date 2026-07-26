@@ -7,21 +7,24 @@ Cập nhật lần cuối: 2026-07-27
 
 ## Phase hiện tại
 
-**P2 ĐANG DỞ — ba lần smoke seed 1, run 3 (probe 1 Hz + `FrameRetryLimit=2`)
-đã VÀO vùng tải mục tiêu: tổng airtime 60.9% toàn mạng (~27%/miền), 5/6 cổng
-đạt (degree 4.97 ✓). Còn đúng một quyết định: cổng MAC loss 78.3% > 75% —
-phân tích cho thấy ngưỡng sai chứ không phải tải sai (78.3% phân rã trọn vẹn
-bằng vị trí đặt probe: 53.5% trials ở ≥600 m nơi q = 0.91–0.99 do vật lý
-waterfall; bin gần sạch dần khi kênh thoáng — chữ ký ngược với sập). ĐANG
-CHỜ duyệt một trong hai phương án ngưỡng ở mục run 3 của
-`reports/P2-harness.md`: (a) gateLossMax 75 → 85; (b — khuyến nghị) thêm
-cổng q-vùng-gần (<400 m) ≤ 0.30 + gateLossMax 85 làm lưới sau. Chỉ đổi
-check_gates + conf, không cần mô phỏng lại. Qua cổng → xin duyệt batch 25
-seed. Không batch trước đó.**
+**P2 SẴN SÀNG BATCH — CHỜ DUYỆT. Cổng đã chốt (7 cổng, phương án b đã
+chỉnh): cổng bão hoà chính = q gộp trên link < 0.64·`rHalfM` ≤ 0.35
+(`rHalfM = 625` là key conf, không hardcode); `gateLossMax` 85 làm lưới SẬP
+KÊNH (đổi vai trò, không phải chỉ báo chất lượng dữ liệu); ngưỡng 0.35 hiệu
+chuẩn từ 2 điểm — xem lại sau batch đầu. Smoke chuẩn (`seed-1-hops`, = run 3
+byte-identical + đo hop) qua CẢ 7 CỔNG. Trials bỏ ngưỡng (GLM trọng số theo
+n; minTrials=2 là vệ sinh). Seed chốt 40 = 5/30/5, conf đã ghi 1-5 / 6-35 /
+36-40; ~2.9 phút/seed → batch 35 seed ≈ 1.7 h.**
 
-Tiến trình ba run (cùng seed 1): tổng airtime 238.9% → 105.6% → 60.9%;
-degree 1.79 → 3.82 → 4.97; loss 92.9% → 81.4% → 78.3%; route OLSR 19% →
-48% → 70%; khuếch đại ARQ 5.37 → 1.76 → 1.71; fails_slipped 26 → 22 → 13.
+**Kế hoạch batch đề xuất (mục cuối `reports/P2-harness.md`): chạy seeds 1–35
+(calib → `data/calib/`, train → `data/train/`), manifest + check_gates từng
+seed, bảng cổng theo seed trước khi sang P3. MỘT CÂU HỎI CHỜ QUYẾT: sinh 5
+seed eval (36–40) ngay bây giờ hay để P10 — tôi nghiêng về để P10 (manifest
+ghim binary+config để tái lập; vùng cấm rỗng thì không chạm nhầm được).**
+
+Tiến trình bốn run (cùng seed 1): tổng airtime 238.9% → 105.6% → 60.9%;
+degree 1.79 → 3.82 → 4.97; route OLSR 19% → 48% → 70%; khuếch đại ARQ 5.37
+→ 1.76 → 1.71; run 4 = run 3 + đo hop, rows.csv trùng md5 (determinism ✓).
 
 Thiết kế Tier 2 đã đổi và đã ghi vào tài liệu TRƯỚC khi viết code: OLSR chuẩn
 (chỉ tạo tải, mù LinkScore) + CBR đa chặng + beacon L2 10 Hz (nguồn duy nhất
@@ -62,14 +65,11 @@ hay không quyết ở P5. Xem CLAUDE.md "Three simulation tiers".
 
 ## Đang vướng
 
-**Một việc duy nhất: duyệt ngưỡng cổng loss** (hai phương án ở mục run 3 của
-báo cáo — khuyến nghị phương án q-vùng-gần: run 3 = 0.216 ✓, run 2 = 0.33 ✗,
-bám đúng bão hoà mà không phạt việc cố ý đo đuôi).
-
-Việc phải chốt ở P4/P5 (ghi để không quên, không phải việc bây giờ): mâu
-thuẫn nhỏ giữa conf (`minTrials = 2`, dòng ít trial là quan sát nhị thức hợp
-lệ trọng số thấp) và CLAUDE.md (lọc `trials ≥ 5`) — ở 1 Hz có 16.2% dòng
-trials < 5 (p10/p25/p50/p90 = 4/5/7/8), lọc cứng sẽ mất chỗ đó.
+**Chờ duyệt batch** (kế hoạch ở trên) + một câu hỏi vận hành: sinh seed eval
+36–40 ngay hay để P10. Không còn vấn đề kỹ thuật mở nào — mâu thuẫn trials
+đã đóng (bỏ ngưỡng, CLAUDE.md/PLAN.md sửa), mâu thuẫn số seed đã đóng
+(40 = 5/30/5), lệch 9× của CBR end-to-end đã phân rã trọn (×5.0 hop-mix,
+×1.69 Jensen — không có bug đếm).
 
 ## Quyết định đã chốt
 
@@ -119,7 +119,17 @@ trials < 5 (p10/p25/p50/p90 = 4/5/7/8), lọc cứng sẽ mất chỗ đó.
 - **Aggregate MAC loss là trung bình theo trọng số vị-trí-đặt-probe**, không
   phải chỉ báo sức khoẻ kênh: 78.3% ở kênh khoẻ (run 3) vì 53.5% trials ở
   ≥600 m nơi q do vật lý là 0.91–0.99. Chỉ báo sập thật là q vùng gần
-  (<400 m): 0.216 (khoẻ) so với 0.33 (bão hoà nhẹ, run 2).
+  (< 0.64·R½): run 3 = 0.265 ✓, run 2 = 0.343 (lọt sát dưới 0.35 — run 2 bị
+  cổng degree chặn thay), run 1 = 0.680 ✗. Số gộp probe+CBR, khác số
+  probe-only (0.216/0.33) từng trích trước đó.
+- **Đường CBR: trung bình 2.15 hop, 71.3% flow-giây có route là ≥2 hop,
+  route availability 70.3% (bảng định tuyến) = 70.1% (app)** — tiền đề CBR
+  đa chặng đứng vững. Lệch 9× giữa end-to-end 21.3% và dự đoán 3-hop 2.4%
+  phân rã = ×5.0 (hop-mix thật) × 1.69 (q̄ trọng số theo attempt bị link xấu
+  kéo lên — Jensen). Đo hop chỉ-đọc không đổi mô phỏng: rows.csv trùng md5.
+- **q̄ per-attempt là trung bình trọng số theo attempt, không phải theo gói**
+  — link xấu sinh nhiều attempt nên kéo q̄ lên; mọi suy diễn end-to-end từ q̄
+  phải nhớ điều này.
 - **MaxDelay 100 ms trơ hoàn toàn khi hết bão hoà**: run 2 expired 0, tràn 0,
   p50 1.8 ms / p99 4.7 ms (run 1 bão hoà: p99 85 ms, expired 0.38%).
 - **ns-3.45 tự cài root qdisc (FqCoDel) lên WifiNetDevice khi gán địa chỉ

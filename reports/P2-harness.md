@@ -391,3 +391,97 @@ tại (0 ARP, 0 fail không quy lớp, PSDU 576=576, slipped giảm đơn điệ
 phương án ngưỡng: chạy lại check_gates trên chính dữ liệu run 3 (không cần
 mô phỏng lại), qua cổng thì xin duyệt batch 25 seed theo `seedsCalibration/
 Train/Test` của conf.
+
+---
+
+# Chốt cổng + chuẩn bị batch (2026-07-27, sau duyệt phương án b)
+
+Git SHA `92102bfff`…`cb337bb9c` | run 4: `data/smoke/p2-harness/seed-1-hops/`, dirty=False
+
+## Cổng đã chốt — 7 cổng, run 3 qua tất cả
+
+Theo phương án (b) với ba điều chỉnh đã duyệt:
+
+- **Cổng bão hoà chính: q gộp (probe+CBR) trên link < 0.64·`rHalfM`** ≤
+  `gateNearQMax` = 0.35. `rHalfM = 625` là key conf (R(0.5) đo ở P1) — vùng
+  gần **suy từ tầm đo được, không phải hằng số 400** (ngưỡng 75 cũ sai chính
+  vì là hằng số thừa kế; không lặp lại lỗi đó).
+- **`gateLossMax` 75 → 85, đổi vai trò thành lưới SẬP KÊNH** — không phải chỉ
+  báo chất lượng dữ liệu; harness không-kiểm-duyệt ở 19/−101 buộc phải có
+  loss tổng cao. Hai vai trò, hai cổng, ghi rõ trong conf.
+- Ngưỡng 0.35 hiệu chuẩn từ đúng **hai điểm** (run 2 bão hoà nhẹ / run 3
+  khoẻ), mỗi điểm một seed → cố ý dễ dãi, **xem lại sau batch đầu** (ghi
+  trong conf).
+
+Kiểm chéo cả ba run với bộ cổng mới:
+
+| Run | q vùng gần | Loss tổng (lưới 85) | Degree | Kết quả |
+|---|---|---|---|---|
+| 1 (bão hoà nặng) | **0.680 ✗** | **92.9% ✗** | **1.79 ✗** | trượt 3 cổng sức khoẻ |
+| 2 (bão hoà nhẹ) | 0.343 ✓ *(sát)* | 81.4% ✓ | **3.82 ✗** | vẫn bị chặn (degree) |
+| 3 (khoẻ) | 0.265 ✓ | 78.3% ✓ | 4.97 ✓ | **7/7 ✓** |
+
+*Ghi chú trung thực:* near-q gộp của run 2 là **0.343**, không phải 0.33 (số
+cũ là probe-only) — ngưỡng 0.35 tha run 2 ở cổng này, run 2 bị bắt nhờ cổng
+degree. Biên hẹp đúng như đã lường khi chọn 0.35 thay 0.30; sau batch đầu có
+phân bố per-seed thì hiệu chuẩn lại.
+
+## Bỏ ngưỡng trials (CLAUDE.md + PLAN.md đã sửa)
+
+Giữ mọi dòng harness phát ra — GLM nhị thức trọng số theo n, đó chính là
+điều phân biệt nó với hồi quy trên tỉ lệ. Ngưỡng `trials ≥ 5` là di sản của
+tư duy tỉ-lệ-liên-tục và **có hại**: link biên chết sớm → ít attempt → trials
+tương quan với nhãn → lọc theo trials là kiểm duyệt đúng loại đã tránh ở mọi
+chỗ khác. `minTrials = 2` giữ làm bộ lọc vệ sinh của harness. Phân bố trials
+(run 3: p10/p25/p50/p90 = 4/5/7/8) vào Limitations — mâu thuẫn conf/CLAUDE.md
+ghi ở mục run 3 đóng lại.
+
+## Run 4 — đo hop CBR, kèm phép kiểm determinism miễn phí
+
+Thêm phép đo thuần quan sát (tra bảng OLSR của node nguồn mỗi giây/flow,
+không RNG, không phát gì). **`rows.csv` của run 4 trùng md5 từng byte với
+run 3** — xác nhận phép đo không nhiễu vào mô phỏng, và harness tái lập
+deterministic. `seed-1-hops/` thành dữ liệu smoke chuẩn (= run 3 + hop).
+
+**Histogram hop (1 710 flow-giây):** no_route 508 (29.7%) · 1 hop 345 · 2 hop
+514 · 3 hop 215 · 4 hop 88 · ≥5 hop 40. Trong flow-giây có route: **71.3% ≥
+2 hop, trung bình 2.15 hop** → tiền đề "CBR tạo tranh chấp chuyển tiếp giống
+Tier 3" **đứng vững**. Route availability từ bảng định tuyến = 70.3%, khớp
+độc lập với 70.1% ước từ app (hai đường đo, một con số).
+
+**Lệch 9× (21.3% đo vs 2.4% dự đoán 3-hop) phân rã trọn, không còn bí ẩn:**
+
+    dự đoán 3-hop:            (1−q²)³ = 2.5%          [giả định sai: 3 hop]
+    × hop-mix thật (2.15 hop): → 12.6%                 [×5.0]
+    × dị biệt q (Jensen):      → 21.3% đo được         [×1.69]
+
+q̄ = 0.841 trọng số theo **attempt** nên bị link xấu (sinh nhiều attempt) kéo
+lên; gói giao thành công dồn về đường tốt hơn trung bình. Không có drop IP
+trước MAC đáng kể, không lỗi đếm.
+
+*Limitations ghi thêm:* 28.7% flow-giây có route là 1-hop và 29.7% không có
+route — CBR đa chặng nhưng không phải luôn luôn; con số này phụ thuộc cách
+rút cặp (src, dst) ngẫu nhiên và sẽ dao động theo seed.
+
+## Seed: 40 = 5 / 30 / 5 (đã ghi vào conf: 1-5 / 6-35 / 36-40)
+
+Mâu thuẫn conf (15 train) vs CLAUDE.md quy tắc 6 (30–40) chốt nghiêng về quy
+tắc 6: cluster-robust SE cần 30–50 cluster, cluster là seed. **Thời gian chạy
+thực run 3: ~2.9 phút** (manifest → summary.json) → 40 seed ≈ 2 h tuần tự,
+ngắn hơn nếu chạy song song vài process. Dưới ngưỡng 10 phút/run của tiêu
+chí "chạy qua đêm" rất xa.
+
+## Sẵn sàng batch — một câu hỏi vận hành chờ quyết
+
+Mọi thứ đã chốt: cổng (7/7 trên smoke chuẩn), tham số (conf), phương pháp
+(tài liệu). Đề xuất kế hoạch batch khi được duyệt:
+
+- Chạy **seeds 1–35** (5 calibration → `data/calib/`, 30 training →
+  `data/train/`), mỗi run manifest riêng `--fail-on-dirty`, check_gates từng
+  seed, bảng tổng hợp cổng theo seed trước khi sang P3.
+- **Câu hỏi cần anh/chị quyết: sinh 5 seed evaluation (36–40) bây giờ hay để
+  P10?** Sinh ngay = trọn bộ cùng binary/config, nhưng `data/eval/` nằm đó
+  ba phase liền với rủi ro chạm nhầm; để P10 = sinh sau từ đúng binary+config
+  đã ghim hash trong manifest (tái lập kiểm chứng được), đổi lại phải giữ
+  binary không trôi. Tôi nghiêng về **để P10** — manifest tồn tại chính để
+  bảo đảm điều đó, và vùng cấm rỗng thì không ai chạm nhầm được.
