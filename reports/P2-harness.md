@@ -1,6 +1,11 @@
 # P2 — Harness thu dữ liệu Tier 2
 
-Ngày 2026-07-27 | Git SHA `ba27233c5` | Config SHA `0a83692226f5…` (`sim-config/fanet-tier2.conf`)
+Ngày 2026-07-27 | Git SHA `ba27233c5` (run 1) / `af306952b` (run 2) | Config: `sim-config/fanet-tier2.conf`
+
+> **Cập nhật cùng ngày:** lần chạy 2 (`FrameRetryLimit = 2`, giữ probe 2 Hz)
+> ở mục cuối. Tổng airtime 105.6% toàn mạng > mục tiêu 70% → dừng theo đúng
+> tiêu chí, đề xuất bước tiếp ở cuối. Hai lần chạy là hai điểm dữ liệu; mục
+> dưới đây giữ nguyên làm hồ sơ lần 1.
 
 **Kết luận: harness chạy đúng và đo được chính nó — smoke test seed 1 TRƯỢT
 2/6 cổng (degree 1.79 < 4.0; MAC loss 92.9% > 75%). Nguyên nhân định lượng
@@ -169,3 +174,93 @@ mạng nghĩa là **mỗi miền ~90–115% — kênh bão hoà bởi chính thi
 probe 1 Hz, dự kiến đưa tổng đo-lường về ~50–60% toàn mạng (~20–25%/miền),
 CBR/OLSR khi đó mới thở được và tỉ lệ đo-lường/ứng-dụng tụt từ 48× về ~5×.
 Sau khi anh/chị chọn, chạy lại đúng 1 seed smoke rồi mới bàn tiếp.
+
+---
+
+# Lần chạy 2 — `FrameRetryLimit = 2`, giữ probe 2 Hz (2026-07-27)
+
+Git SHA `af306952b` | manifest `data/smoke/p2-harness/seed-1-retry2/run_manifest.json`, dirty=False | cùng seed 1
+
+Thay đổi so với run 1 đúng một tham số: `frameRetryLimit = 2` (=
+dot11ShortRetryLimit — **`MaxSsrc`/`MaxSlrc` đã OBSOLETE từ ns-3.44**, knob
+còn hoạt động là `WifiMac::FrameRetryLimit`, kiểm trong source: nghĩa là số
+*attempt* tối đa mỗi frame, drop khi retry count chạm limit). Quyết định toàn
+hệ thống, đã vào bảng Simulation Setup của CLAUDE.md/PLAN.md cùng hai lý do
+(chuỗi retry tương quan ~√5; retry dai dẳng phản tác dụng ở tốc độ FANET).
+
+## Cổng nghiệm thu (seed 1, 19 752 dòng)
+
+| Chỉ số | Ngưỡng | Run 1 | **Run 2** | Đạt |
+|---|---|---|---|---|
+| Degree trung bình (định nghĩa P1) | ≥ 4.0 | 1.79 | **3.82** | ✗ (sát) |
+| % dòng `retry_rate` > 0 | ≥ 10% | 96.1% | 94.9% | ✓ |
+| % dòng 0 < pdr < 1 | ≥ 10% | 75.2% | 68.0% | ✓ |
+| MAC loss per-attempt | ≤ 75% | 92.9% | **81.4%** | ✗ |
+| % dòng pdr ghim 0/1 | ≤ 90% | 24.8% | 32.0% | ✓ |
+| Dòng có fails > 0 | > 0 | 13 898 | 18 892 | ✓ |
+
+**Vẫn trượt 2/6, cả hai đều cải thiện mạnh và đều còn bị bão hoà đè** — tổng
+airtime chưa vào vùng mục tiêu nên chưa kết luận được cổng nào là "trượt
+thật" (tiêu chí dừng thứ hai của lượt này chưa kích hoạt: chưa vào 50–70%).
+
+## Bộ số so sánh yêu cầu
+
+| Đại lượng | Run 1 (L=7) | **Run 2 (L=2)** | Tham chiếu |
+|---|---|---|---|
+| **Tổng airtime mọi nguồn** | 716.6 s = **238.9%** mạng (~106%/miền) | 316.9 s = **105.6%** mạng (~**47%**/miền) | mục tiêu 50–70% mạng |
+| — probe | 686.3 s (228.8%) | 288.3 s (96.1%) | |
+| — beacon / cbr / olsr / ctrl | 10.4 / 13.3 / 1.1 / 5.5 s | 10.4 / 12.0 / 1.4 / 4.8 s | |
+| Khuếch đại ARQ (attempts/sends) | ×5.37 | **×1.76** | dự đoán 1.93 tại q=0.929; tại q đo được 0.814 thì 1+q = 1.81 — khớp |
+| Probe gửi | 161 475 | **207 075 (+28%)** | tập admission nở ra khi kênh thoáng |
+| Neighbor được probe TB/node | 8.97 | **11.50** | degree chặt 6.14; loose P1 ~14.4 |
+| Degree (định nghĩa P1) | 1.79 | **3.82** | P1: 6.14; cô lập 17.0% → **1.9%** (P1: 0.6%) |
+| Route OLSR tồn tại | 19.0% | **48.0%** | lịch 13 620 gói, gửi được 6 536 |
+| Dòng probe-only | 98.8% | **97.1%** | CBR vẫn gần như vắng trong nhãn |
+| Median trials/dòng | 39 | **14** | sàn phân tích 5 |
+| corr(retry, rssi) toàn cục | −0.858 | **−0.859** | theo bin: −0.26/−0.60/−0.58/−0.37/−0.09 (0→800+ m); sâu nhất ở 200–600 m |
+| Queue | p99 85 ms, expired 0.38% | **p99 4.7 ms, expired 0, tràn 0** | MaxDelay giờ hoàn toàn trơ — đúng "setting trơ và an toàn" |
+| q per-attempt (probe / cbr) | 0.931 / 0.813 | 0.814 / **0.823** | q_cbr ≈ q_probe: min-hop chọn link dài/biên — đúng bệnh lý mà đề tài nhắm vào |
+
+Kiểm chứng phụ giữ nguyên chất lượng: 0 ARP, 0 fail không quy được lớp, PSDU
+576 = 576, 22 cửa sổ fail trượt biên (0.11%).
+
+## Chẩn đoán: vì sao ×2.9 dự kiến chỉ thành ×2.4
+
+Trần retry cắt khuếch đại đúng như dự đoán (5.37 → 1.76, lý thuyết 1.81),
+nhưng **kênh thoáng hơn làm beacon decode tốt hơn (230 k → 391 k lần nhận),
+TTL 2 s admit thêm neighbor (~9.0 → ~11.5/node), probe gửi tăng 28%** — phản
+hồi dương giữa độ thoáng kênh và kích thước tập admission nuốt mất một phần
+lợi ích. Airtime probe giảm ×2.38 thay vì ×3.05. Nếu tải giảm tiếp, admission
+còn nở về phía loose-degree ~14 — phải tính hệ số này vào mọi dự đoán tải
+probe từ nay về sau (cùng bài học với hệ số ×5.37 của run 1).
+
+Degree 3.82 vẫn thấp hơn 6.14 vì kênh vẫn mất ~33% beacon so với kênh sạch
+(391 k nhận so với 582 k của P1 cùng nhịp, cùng công suất) — nhất quán với
+~47%/miền còn quá cao, chưa phải nguyên nhân nào khác ngoài bão hoà.
+
+## Trạng thái theo tiêu chí đã giao
+
+Tổng airtime 105.6% toàn mạng > 70% → **DỪNG theo đúng điều kiện 4, không tự
+hạ probe.** Chưa vào được vùng 50–70% nên chưa trả lời được câu hỏi "vào vùng
+mà degree vẫn trượt thì nguyên nhân khác bão hoà" — bước tiếp theo phải đưa
+tải vào vùng trước đã.
+
+## Đề xuất bước tiếp (chưa thực hiện)
+
+Số học từ run 2: airtime probe = sends × amp × 792 µs. Muốn tổng ≤ 70% mạng
+(probe ≤ ~186 s) cần sends ≤ ~133 k, tức **giảm ~36% số lần gửi**, và phải
+chừa chỗ cho admission nở tiếp khi kênh thoáng (11.5 → ~14 neighbor).
+
+1. **`probeInterval` 0.5 → 1.0 s/neighbor** (đề xuất chính). Sends ~×0.5 kể
+   cả khi admission nở đầy (~14 neighbor × 1 Hz = 14 gửi/s/node so với 23
+   hiện tại): probe ≈ 130–150 s ≈ 43–50% mạng, tổng ≈ **55–60% mạng
+   (~24–27%/miền) — giữa vùng mục tiêu**, còn dư biên. Chi phí: attempt
+   probe/dòng ≈ 4 gửi × 1.8 ≈ 7 — vẫn trên sàn `trials ≥ 5`; median trials
+   ~7–8 (run 2: 14). Cái giá này giờ rẻ hơn lúc trước vì amp đã bị chặn ở
+   ≤2 — lập luận "giữ 2 Hz để giữ độ chính xác nhãn" đúng ở thời điểm quyết
+   nhưng bị phản hồi admission (+28% sends) ăn mất phần dự phòng.
+2. *(dự phòng nếu 1 chưa đủ)* TTL 2 → 1 s — thắt admission, nhưng đổi bias
+   lấy variance như conf đã cảnh báo; chỉ dùng nếu sau bước 1 tổng vẫn > 70%.
+
+Sau khi anh/chị duyệt: đổi đúng một tham số, chạy lại 1 seed, so ba điểm dữ
+liệu rồi mới bàn cổng degree/loss.

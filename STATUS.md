@@ -7,12 +7,17 @@ Cập nhật lần cuối: 2026-07-27
 
 ## Phase hiện tại
 
-**P2 ĐANG DỞ — harness viết xong và chạy đúng, smoke seed 1 TRƯỢT 2/6 cổng
-(degree 1.79 < 4.0; MAC loss 92.9% > 75%). Nguyên nhân đã chẩn đoán định
-lượng: bão hoà kênh do probe (airtime probe 228.8% simTime toàn mạng,
-đo-lường/ứng-dụng = 48.5×). ĐANG CHỜ quyết định mức tải probe — ba đòn bẩy
-kèm số trong `reports/P2-harness.md` mục cuối. Không chạy batch, không chỉnh
-tham số cho tới khi duyệt.**
+**P2 ĐANG DỞ — hai lần smoke seed 1, cùng trượt 2/6 cổng (degree, MAC loss),
+cả hai cổng đều cải thiện mạnh sau `FrameRetryLimit = 2` nhưng tổng airtime
+run 2 là 105.6% toàn mạng (~47%/miền) — vẫn trên tiêu chí 50–70%, nên DỪNG
+theo đúng điều kiện đã giao, chưa kết luận được cổng nào "trượt thật".
+ĐANG CHỜ duyệt đề xuất: `probeInterval` 0.5 → 1.0 s/neighbor (dự phóng tổng
+~55–60% mạng, giữa vùng mục tiêu). Chi tiết + bảng so run 1/run 2 ở mục cuối
+`reports/P2-harness.md`. Không batch.**
+
+Run 1 (L=7): degree 1.79, loss 92.9%, airtime probe 228.8%. Run 2 (L=2):
+degree 3.82, loss 81.4%, probe 96.1%, khuếch đại ARQ 5.37 → 1.76 (dự đoán
+1+q = 1.81 — khớp), route OLSR 19% → 48%, queue trơ hoàn toàn (p99 4.7 ms).
 
 Thiết kế Tier 2 đã đổi và đã ghi vào tài liệu TRƯỚC khi viết code: OLSR chuẩn
 (chỉ tạo tải, mù LinkScore) + CBR đa chặng + beacon L2 10 Hz (nguồn duy nhất
@@ -37,25 +42,39 @@ hay không quyết ở P5. Xem CLAUDE.md "Three simulation tiers".
   (ngưỡng đọc từ conf, exit 1 khi trượt, bảng airtime tách nguồn),
   `fanet-tier2.conf` khối harness mới (labelWin 4, beacon 0.1 s, probeBytes
   540, key CBR/warmup/MaxDelay).
-- **P2 — smoke seed 1** (SHA `ba27233c5`, dirty=False, manifest chuẩn):
-  14 273 dòng, kết quả và chẩn đoán trong `reports/P2-harness.md`.
+- **P2 — smoke seed 1, run 1** (SHA `ba27233c5`, L=7): 14 273 dòng — bão hoà
+  do probe, chẩn đoán trong `reports/P2-harness.md`.
+- **P2 — `FrameRetryLimit = 2`** (tài liệu + conf + code, SHA `64eacc733` /
+  `af306952b`) và **smoke run 2** cùng seed: 19 752 dòng, bảng so hai run ở
+  mục cuối báo cáo. Dữ liệu hai run giữ song song:
+  `data/smoke/p2-harness/seed-1{,-retry2}/`.
 
 ## Đang vướng
 
-**Một việc duy nhất: chọn đòn bẩy hạ tải probe.** Chuỗi nhân quả đo được:
-ước lượng thiết kế sai 7.8× vì (a) admission TTL-lỏng nhận ~9 neighbor/node
-chứ không phải degree chặt 6.14, (b) khuếch đại ARQ ×5.37 (866 573 attempt /
-161 475 probe gửi). Bão hoà đè beacon (degree đo sập còn 1.79) và đè OLSR
-(route tồn tại ~19% thời gian → 98.8% dòng là probe-only). Ba phương án kèm
-số ở cuối `reports/P2-harness.md`; đề xuất: trần retry MaxSsrc 7→1-2 toàn
-mạng + probe 1 Hz. Sau khi chọn: chạy lại đúng 1 seed smoke, qua cổng rồi mới
-bàn batch.
+**Một việc duy nhất: duyệt hạ nhịp probe 2 Hz → 1 Hz/neighbor.** Trần retry
+đã cắt khuếch đại đúng dự đoán (5.37 → 1.76), nhưng kênh thoáng làm beacon
+decode tốt hơn → TTL admit thêm neighbor (9.0 → 11.5/node) → probe gửi tăng
+28%, nuốt một phần lợi ích (giảm ×2.38 thay vì ×3.05). Số học còn lại: cần
+giảm ~36% số lần gửi để tổng vào ≤ 70% mạng, và phải chừa chỗ cho admission
+nở tiếp về ~14. Ở 1 Hz: attempt probe/dòng ≈ 7 ≥ sàn 5, median trials ~7–8.
+Dự phòng nếu chưa đủ: TTL 2 → 1 s (đổi bias lấy variance — để sau cùng).
+Sau khi duyệt: đổi đúng một tham số, chạy lại 1 seed, so ba điểm dữ liệu.
 
 ## Quyết định đã chốt
 
 - **Ba tầng mô phỏng** (CLAUDE.md): Tier 1 kiểm chứng / Tier 2 thu dữ liệu
   (OLSR-tải + CBR + beacon + probe) / Tier 3 đánh giá (không beacon, không
   probe). Kết quả không bao giờ vượt tầng.
+- **`FrameRetryLimit = 2` toàn hệ thống** (= dot11ShortRetryLimit; áp cả
+  Tier 2 lẫn Tier 3, vào bảng Simulation Setup): chuỗi retry tương quan làm
+  GLM khai quá thông tin ~√5 ở L=7, chặn ở ~√2; retry dai dẳng phản tác dụng
+  ở tốc độ FANET. Đo được: khuếch đại 5.37 → 1.76.
+- **`retry_rate` là NHÃN TRỄ** (cùng đại lượng với `pdr_future`, lệch τ) —
+  câu hỏi P5 là "RSSI + slope có vượt AR baseline không"; bảng đối chứng P5
+  đã thêm chỉ-retry và chỉ-RSSI+slope.
+- **Tiêu chí tải Tier 2: TỔNG airtime mọi nguồn 50–70% toàn mạng**
+  (~20–28%/miền), không dùng tỉ số đo-lường/ứng-dụng. Limitations: probe rải
+  đều, CBR dồn dọc tuyến — mẫu hình tranh chấp không gian khác Tier 3.
 - **Nhãn tách cột `trials_probe/fails_probe` và `trials_cbr/fails_cbr`** —
   link on-path có n gấp ~10× và tự tranh chấp không nằm trong feature; gộp
   hay không là quyết định của P5 (fit ba bản, so β), không phải của P2.
@@ -74,6 +93,18 @@ bàn batch.
 
 ## Sự thật đã đo, ghi để khỏi suy lại
 
+- **`MaxSsrc`/`MaxSlrc` là OBSOLETE từ ns-3.44** — knob còn hoạt động là
+  `WifiMac::FrameRetryLimit`, nghĩa "số ATTEMPT tối đa mỗi frame" (drop khi
+  retry count chạm limit, min 1). L=2 → E[attempts] = 1 + q; đo 1.76 tại
+  q = 0.814, khớp.
+- **Phản hồi dương admission ↔ độ thoáng kênh**: kênh thoáng hơn → beacon
+  decode nhiều hơn → TTL admit thêm neighbor (9.0 → 11.5, trần loose ~14) →
+  probe gửi tăng 28%. Mọi dự đoán tải probe phải tính hệ số này.
+- **q_cbr ≈ q_probe (0.82)** — min-hop chọn link dài/biên nên CBR fail
+  per-attempt cao ngang probe trên link biên. Đúng bệnh lý đề tài nhắm vào;
+  cũng nghĩa là CBR không tự động "sạch" hơn probe.
+- **MaxDelay 100 ms trơ hoàn toàn khi hết bão hoà**: run 2 expired 0, tràn 0,
+  p50 1.8 ms / p99 4.7 ms (run 1 bão hoà: p99 85 ms, expired 0.38%).
 - **ns-3.45 tự cài root qdisc (FqCoDel) lên WifiNetDevice khi gán địa chỉ
   IP.** Không tin tài liệu cũ nói "không còn default qdisc".
 - **Trace `Tx` của OnOffApplication chỉ bắn khi `Send` thành công** — với
