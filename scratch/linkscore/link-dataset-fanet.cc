@@ -169,6 +169,12 @@ double g_degreeSum = 0;
 uint64_t g_degreeSamples = 0;
 uint64_t g_isolatedSamples = 0;
 
+// --- phan bo hop cua duong CBR, tu bang dinh tuyen OLSR cua node nguon.
+// Chi DOC (khong RNG, khong phat gi) nen khong doi ket qua mo phong —
+// rows.csv phai byte-identical voi run khong do. Khoa -1 = khong co route.
+std::vector<std::pair<uint32_t, Ipv4Address>> g_flowProbe; // (src, dst addr)
+std::map<int32_t, uint64_t> g_cbrHops;
+
 std::ofstream g_rowsCsv;
 std::ofstream g_posCsv;
 
@@ -541,6 +547,36 @@ SampleDegree()
         }
     }
     Simulator::Schedule(Seconds(1.0), &SampleDegree);
+}
+
+/// Moi giay, moi flow: tra bang OLSR cua node nguon xem duong toi dich dai
+/// bao nhieu hop. Tra loi "CBR co that su da chang khong" — neu phan lon
+/// 1 hop thi lap luan 'CBR tao tranh chap chuyen tiep giong Tier 3' yeu di.
+void
+SampleCbrHops()
+{
+    const double t = NowSec();
+    if (t >= g_simTime)
+    {
+        return;
+    }
+    for (const auto& [src, dstAddr] : g_flowProbe)
+    {
+        Ptr<olsr::RoutingProtocol> rp = DynamicCast<olsr::RoutingProtocol>(
+            g_nodes.Get(src)->GetObject<Ipv4>()->GetRoutingProtocol());
+        NS_ABORT_MSG_UNLESS(rp, "routing protocol cua node khong phai olsr::RoutingProtocol");
+        int32_t hops = -1;
+        for (const auto& entry : rp->GetRoutingTableEntries())
+        {
+            if (entry.destAddr == dstAddr)
+            {
+                hops = static_cast<int32_t>(entry.distance);
+                break;
+            }
+        }
+        g_cbrHops[hops]++;
+    }
+    Simulator::Schedule(Seconds(1.0), &SampleCbrHops);
 }
 
 void
@@ -1050,6 +1086,7 @@ main(int argc, char* argv[])
         sink.Start(Seconds(0.0));
         sink.Stop(Seconds(simTime) + Seconds(1.0));
         sink.Get(0)->TraceConnectWithoutContext("Rx", MakeCallback(&OnCbrRx));
+        g_flowProbe.emplace_back(s, ifaces.GetAddress(d));
     }
 
     // --- trace: sniffer + fail theo node (bound callback, khong parse context)
@@ -1102,6 +1139,7 @@ main(int argc, char* argv[])
     Simulator::Schedule(Seconds(5.0), &SampleDegree);
     Simulator::Schedule(Seconds(0.0), &SamplePositions, 5.0);
     Simulator::Schedule(Seconds(labelWin), &Rotate);
+    Simulator::Schedule(Seconds(15.0), &SampleCbrHops); // tu luc flow dau bat dau
 
     Simulator::Stop(Seconds(simTime) + Seconds(1.0));
     Simulator::Run();
@@ -1195,6 +1233,18 @@ main(int argc, char* argv[])
             << "  \"queue_delay_ms_max\": " << delayMax << ",\n"
             << "  \"cbr_app_tx\": " << g_count.cbrAppTx << ",\n"
             << "  \"cbr_app_rx\": " << g_count.cbrAppRx << ",\n"
+            << "  \"cbr_hops\": {";
+    {
+        bool first = true;
+        for (const auto& [hops, count] : g_cbrHops)
+        {
+            summary << (first ? "" : ", ") << '"'
+                    << (hops < 0 ? std::string("no_route") : std::to_string(hops)) << "\": "
+                    << count;
+            first = false;
+        }
+    }
+    summary << "},\n"
             << "  \"airtime_s\": {";
     for (int c = 0; c < FC_COUNT; ++c)
     {
@@ -1228,6 +1278,13 @@ main(int argc, char* argv[])
               << delayP99 << "  max " << delayMax << "\n"
               << "  cbr app          : tx " << g_count.cbrAppTx << "  rx " << g_count.cbrAppRx
               << "\n"
+              << "  cbr hop (flow-giay): ";
+    for (const auto& [hops, count] : g_cbrHops)
+    {
+        std::cout << (hops < 0 ? std::string("no_route") : std::to_string(hops) + " hop") << "="
+                  << count << "  ";
+    }
+    std::cout << "\n"
               << "  --- airtime theo nguon (% cua " << simTime << " s, toan mang, chua chia "
                  "mien tranh chap) ---\n";
     for (int c = 0; c < FC_COUNT; ++c)
