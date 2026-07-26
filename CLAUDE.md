@@ -62,7 +62,14 @@ Tier 2 design, and why each piece is there:
 **Instrument-dominated load is the standing threat.** Beacons and probes do
 not exist in Tier 3, so their airtime share in Tier 2 must be measured (every
 run prints airtime by source) and kept from dominating the contention that
-retry is measured under (rule 13).
+retry is measured under (rule 13). **The acceptance criterion is TOTAL airtime
+across all sources: 50–70% network-wide (~20–28% per contention domain at
+2–2.5 domains).** Do not use the measurement/application airtime *ratio* as
+the criterion — a collision is a collision whatever the colliding frame's
+purpose; what sets the retry environment is total channel occupancy.
+Limitations must still declare the *spatial* difference: probe load is
+uniform over links while CBR concentrates along routes, so the spatial
+pattern of contention differs from Tier 3 even at matched occupancy.
 
 ## The sampling constraint, and why this is dual control
 
@@ -158,12 +165,24 @@ Per-attempt delivery is also **the quantity ETX measures** (ETX = 1/(d_f·d_r)
 over one-attempt probabilities), which makes the comparison against ETX in the
 paper natural rather than forced.
 
-**Limitation to declare: attempts within one frame are not independent.** Seven
-retries happen within milliseconds under near-identical channel conditions, so
+**Limitation to declare: attempts within one frame are not independent.**
+Retries happen within milliseconds under near-identical channel conditions, so
 `n = trials_future` overstates the information content and the binomial GLM
-reports optimistic standard errors. At the boundary E[attempts] ≈ 1/p ≈ 2, so
-the SE is understated by roughly √2. Not fatal, but it is one more reason the
+reports optimistic standard errors. This is one of the two reasons
+`FrameRetryLimit = 2` is a system-wide parameter (see the Simulation Setup
+table): the correlated chain is capped at 2 attempts, so the SE understatement
+is bounded by ~√2 instead of ~√5 at L = 7. Still one more reason the
 cluster-robust SE of rule 6 is mandatory, not optional.
+
+**`retry_rate` is a lagged label, and the paper must say so.** The retry
+feature (window `[t−Δ, t)`) and `pdr_future` (window `[t, t+τ)`) are the same
+physical quantity — per-attempt delivery — measured in two adjacent windows.
+The scientific question of P5 is therefore **not** "which of the three metrics
+matters most" but **"do RSSI level + slope add predictive power beyond
+extrapolating the past delivery rate?"** — the retry-only model is an
+autoregressive baseline, and LinkScore earns its keep only by beating it. The
+P5 comparison table must include: retry-only (AR baseline), RSSI+slope only,
+all three, geometric LET.
 
 ### 4. Do not constrain a+b+c=1 during the fit
 In a logistic model the magnitude of β sets the slope of the sigmoid; the data
@@ -410,6 +429,7 @@ bite you** (see the Nakagami note below).
 | **MeanPitch** | **Uniform[−0.05, +0.05]** | The widely copied ns-3 template sets `Min=Max=0.05`, so every UAV climbs forever and pins to the ceiling. Bug. |
 | NormalVelocity | Normal[0, var 2.0, bound 4.0] | Template sets var=0, i.e. no speed variation |
 | Standard | 802.11a, 5.18 GHz, `ConstantRateWifiManager` 6 Mbps | |
+| **`FrameRetryLimit`** | **2** (= dot11ShortRetryLimit; the pre-3.44 ns-3 knobs `MaxSsrc`/`MaxSlrc` are OBSOLETE in 3.45 and replaced by this single attribute) | **System-wide decision — applies to Tier 2 AND Tier 3, declared in Simulation Setup.** Two reasons: (i) retries of one frame happen within ms under a near-identical channel, so L = 7 counts a burst of 7 *correlated* failures as 7 iid Bernoulli trials and the binomial GLM overstates its information by ~√5; L = 2 bounds the overstatement at ~√2. (ii) At FANET speeds persistent retry is counterproductive — the topology changes before the burst ends, so the airtime is spent on links that are already gone. Measured consequence at L = 7: ARQ amplification ×5.37 saturated the channel (P2 smoke run 1). |
 | **TxPower** | **19 dBm** | Chosen to hit a **measured** degree, not from a link-budget formula. Gives d(PDR 0.5) = **625 m** and degree **6.14**, both measured in P1. |
 | **`MinimumRssi`** | **−101 dBm** | `ThresholdPreambleDetectionModel` defaults to **−82 dBm**, a hard RSSI floor: a frame below it is never detected whatever its SNR, and it sits 7 dB above the noise-limited sensitivity. At −101 the binding constraint becomes `Threshold` (4 dB SNR → effective floor −90 dBm). **Declare in the paper.** It buys no extra range at fixed degree — see below. |
 | **Mean degree** | **6.14** | **Measured** (P1, beacon ratio ≥ 0.5 over 5 s), isolated 0.6% of node-time. Cross-checked by a geometric count from recorded positions with no beacon involved: ~6.0. Do not compute this from a density formula — the box is 500 m tall against a 625 m range, so the 2D and 3D formulas differ by nearly 2× and the coverage sphere is clipped by the boundary. |

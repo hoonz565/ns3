@@ -94,6 +94,7 @@ Nếu dataset huấn luyện tính RSSI bằng trung bình cửa sổ mà node t
 | | TimeStep | 0.5 s | |
 | PHY | Chuẩn | 802.11a, 5.18 GHz | |
 | | Rate manager | `ConstantRateWifiManager`, 6 Mbps | Rate adaptation che mất tín hiệu cần đo |
+| | **`FrameRetryLimit`** | **2** (= dot11ShortRetryLimit; `MaxSsrc`/`MaxSlrc` cũ đã OBSOLETE từ ns-3.44) | **Quyết định toàn hệ thống, áp cả Tier 2 lẫn Tier 3** (P2, 2026-07-27): (i) retry trong cùng frame tương quan — L=7 đếm chuỗi 7 thất bại tương quan như 7 phép thử iid, GLM khai quá thông tin ~√5, L=2 chặn ở ~√2; (ii) ở tốc độ FANET retry dai dẳng phản tác dụng — topology đổi trước khi chuỗi thử xong. Đo được ở L=7: khuếch đại ARQ ×5.37 làm bão hoà kênh |
 | | **TxPower** | **19 dBm** | Chọn theo **degree đo được**, không theo công thức link budget. Cho d(PDR 0.5) = **625 m**, degree **6.14** — cả hai đo ở P1 |
 | | **`MinimumRssi`** | **−101 dBm** | Mặc định −82 dBm là **sàn cứng trên RSSI**, cao hơn giới hạn do nhiễu 7 dB. Hạ về −101 thì ràng buộc chuyển sang `Threshold` (4 dB SNR). Ở degree cố định nó **không mua thêm tầm phủ** — lý do là (a) gỡ kiểm duyệt trên chính feature RSSI, (b) mép link dịch theo can nhiễu thay vì đứng yên. **Khai báo trong paper** |
 | | **Degree trung bình** | **6.14** | **Đo được** (P1, tỉ lệ nhận beacon ≥ 0.5 trong 5 s), cô lập 0.6%. Kiểm chứng bằng đếm hình học từ vị trí ghi được, không dùng beacon: ~6.0. Đừng tính bằng công thức mật độ — hộp cao 500 m so với tầm phủ 625 m nên công thức 2D và 3D lệch gần 2× |
@@ -134,7 +135,11 @@ Broadcast không có ACK → không retry, không nhãn. Chỉ probe thì không
 
 **Probe là thiết bị đo, không phải một phần hệ thống triển khai.** Như hầm gió: dùng để đặc trưng hoá rồi tháo ra. Overhead của nó không tính vào kết quả paper vì nó không tồn tại ở P10.
 
-**Rủi ro phải đo ngay ở smoke test: tải do chính thiết bị đo chi phối.** Ước lượng thô cho thấy probe chiếm airtime gấp ~3 lần CBR — nếu đúng, môi trường tranh chấp mà retry được đo trong đó do traffic đo lường tạo ra, còn Tier 3 không có probe/beacon (quy tắc 13: không fit ở mức tải khác mức bộ điều khiển sẽ thấy). Smoke test **phải in bảng airtime tách theo nguồn** (beacon / probe / CBR / OLSR / ack) — con số đó quyết định mức CBR, hệ số tái sử dụng không gian không đoán được. Ba hướng nếu xấu: nâng CBR cho traffic ứng dụng chi phối; probe thích ứng (chỉ probe neighbor chưa đủ attempt từ traffic thật); hoặc chấp nhận và định lượng β_mac theo mức tải (quy tắc 14).
+**Rủi ro phải đo ngay ở smoke test: tải do chính thiết bị đo chi phối.** Smoke test **phải in bảng airtime tách theo nguồn** (beacon / probe / CBR / OLSR / ack) — hệ số tái sử dụng không gian không đoán được, phải đo.
+
+Smoke run 1 (2026-07-27) đo được chế độ hỏng này ở dạng cực đoan: airtime probe 228.8% simTime toàn mạng, vì ước lượng thiết kế thiếu hai hệ số nhân — admission theo TTL lỏng nhận ~9 neighbor/node (không phải degree chặt 6.14) và khuếch đại ARQ ×5.37. **Cơ chế đã chốt: `FrameRetryLimit = 2` toàn hệ thống** (xem bảng P1 — quyết định hệ thống, không phải knob riêng của harness; nhãn per-attempt không đổi định nghĩa, chỉ bớt phép thử lãng phí trên link chết). Giữ probe 2 Hz/neighbor — hạ nhịp probe là vứt độ chính xác nhãn (trials/dòng 39 → ~10) để giải bài toán đã được giải bằng trần retry.
+
+**Tiêu chí nghiệm thu tải: TỔNG airtime mọi nguồn 50–70% toàn mạng (~20–28%/miền).** Không dùng tỉ số đo-lường/ứng-dụng làm tiêu chí — va chạm là va chạm bất kể frame va chạm mang mục đích gì; cái đặt môi trường retry là mức chiếm dụng tổng. Limitations vẫn phải khai báo khác biệt *không gian*: probe rải đều trên link, CBR tập trung dọc tuyến, nên mẫu hình tranh chấp theo không gian khác Tier 3 ngay cả khi chiếm dụng tổng khớp.
 
 ### Định nghĩa feature — chốt một lần, dùng ở cả P2 và P8
 
@@ -270,10 +275,21 @@ Nếu tỉ số này xấp xỉ đúng horizon nhãn, bạn có bằng chứng t
 
 ### Mô hình đối chứng — phần quyết định sức nặng của paper
 
+**`retry_rate` là NHÃN TRỄ, phải đối xử như vậy** (thêm 2026-07-27, xem
+CLAUDE.md quy tắc 3): feature retry ở `[t−Δ, t)` và `pdr_future` ở `[t, t+τ)`
+là cùng một đại lượng vật lý — xác suất giao per-attempt — đo ở hai cửa sổ kề
+nhau. Câu hỏi khoa học của P5 vì thế **không phải** "metric nào quan trọng
+nhất" mà là **"RSSI + slope có thêm sức dự đoán vượt trên ngoại suy tỉ lệ
+giao gói quá khứ không"** — mô hình chỉ-retry là baseline tự hồi quy (AR), và
+LinkScore chỉ có giá trị nếu thắng nó.
+
 | Mô hình | Câu hỏi |
 |---|---|
+| **Chỉ `retry_rate` (AR baseline)** | **Quá khứ gần tự nó dự đoán được bao nhiêu?** |
+| **Chỉ `rssi_level` + `rssi_slope`** | **Phần RSSI thêm được gì vượt trên AR?** (so với hàng trên) |
 | Chỉ `rssi_level` | Ba metric có hơn một metric không? |
 | Bỏ `rssi_slope` | Slope có đóng góp thống kê không? |
+| Cả ba | Mô hình đầy đủ |
 | Thêm tương tác `rssi × slope` | Slope có ý nghĩa khác nhau tuỳ mức RSSI không? |
 | **Khoảng cách Euclid** | LinkScore có hơn "khoảng cách trá hình" không? |
 | **LET hình học** (vị trí + vận tốc) | **Đối thủ thật — UAV có GPS** |
