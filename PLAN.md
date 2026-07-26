@@ -94,8 +94,10 @@ Nếu dataset huấn luyện tính RSSI bằng trung bình cửa sổ mà node t
 | | TimeStep | 0.5 s | |
 | PHY | Chuẩn | 802.11a, 5.18 GHz | |
 | | Rate manager | `ConstantRateWifiManager`, 6 Mbps | Rate adaptation che mất tín hiệu cần đo |
-| | **TxPower** | **17 dBm** | **Đo được** d(PDR 0.5) = 501 m ở P0, không phải suy ra. 10 dBm cho 107 m với sàn detect mặc định của ns-3 — dòng "10 dBm ≈ 500 m" trước đây dùng ngưỡng −96 dBm không tồn tại |
-| | **`MinimumRssi`** | **−101 dBm** | `ThresholdPreambleDetectionModel` mặc định −82 dBm là **sàn cứng trên RSSI**, cao hơn giới hạn do nhiễu 7 dB. Hạ về −101 thì ràng buộc chuyển sang `Threshold` (4 dB SNR → sàn hiệu dụng −90 dBm), tức dựa trên vật lý. **Khai báo trong paper** |
+| | **TxPower** | **19 dBm** | Chọn theo **degree đo được**, không theo công thức link budget. Cho d(PDR 0.5) = **625 m**, degree **6.14** — cả hai đo ở P1 |
+| | **`MinimumRssi`** | **−101 dBm** | Mặc định −82 dBm là **sàn cứng trên RSSI**, cao hơn giới hạn do nhiễu 7 dB. Hạ về −101 thì ràng buộc chuyển sang `Threshold` (4 dB SNR). Ở degree cố định nó **không mua thêm tầm phủ** — lý do là (a) gỡ kiểm duyệt trên chính feature RSSI, (b) mép link dịch theo can nhiễu thay vì đứng yên. **Khai báo trong paper** |
+| | **Degree trung bình** | **6.14** | **Đo được** (P1, tỉ lệ nhận beacon ≥ 0.5 trong 5 s), cô lập 0.6%. Kiểm chứng bằng đếm hình học từ vị trí ghi được, không dùng beacon: ~6.0. Đừng tính bằng công thức mật độ — hộp cao 500 m so với tầm phủ 625 m nên công thức 2D và 3D lệch gần 2× |
+| | **Động lực học độ cao** | quasi-2D | Mỗi node ở nguyên lát cao ~107 m suốt run 300 s (trung vị z-span; **100%** node quét dưới nửa dải 500 m). Vận động dọc đóng góp trung vị **0.7%** vào thay đổi khoảng cách làm link đổi trạng thái (3.2% trước khi chiếu). Tức: **vị trí** 3D phân tầng giữa các node, động lực học do chuyển động ngang |
 | | `WifiMacQueue::MaxDelay` | 100 ms (interface probe) | Giãn nhịp probe không chặn được backlog: 10 ms → retry_rate 0.9478, 50 ms → 0.9475. Chặn bằng thời gian sống của gói |
 | | Path loss exponent | 2.2 | Đo đạc A2A ≈ free-space |
 | | **Nakagami m₀/m₁/m₂** | **8 / 5 / 3** | LoS trên không; 0.75 là kênh đô thị |

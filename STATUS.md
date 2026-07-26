@@ -7,9 +7,13 @@ Cập nhật lần cuối: 2026-07-26
 
 ## Phase hiện tại
 
-**P1 xong về mặt công cụ, nhưng CHƯA đóng băng được config** — hai cổng không
-đạt ở giá trị hiện tại của `fanet-tier2.conf`, và việc sửa cần anh/chị chốt.
-Báo cáo: `reports/P1-config.md`. Chưa bắt đầu P2.
+**P1 XONG. Config đã đóng băng.** Sẵn sàng cho P2 (harness thu dữ liệu Tier 2)
+khi anh/chị duyệt. Báo cáo: `reports/P1-config.md`.
+
+Config đóng băng: `txPowerDbm = 19`, `minRssiDbm = -101`, `channelNumber = 36`,
+`dataMode = OfdmRate6Mbps` — tất cả trong `sim-config/fanet-tier2.conf`, xác
+nhận bằng run đọc thẳng từ config (không flag): degree **6.14**, provenance in
+ra đúng tên file cho cả bốn key.
 
 ## Đã hoàn thành
 
@@ -28,19 +32,20 @@ Báo cáo: `reports/P1-config.md`. Chưa bắt đầu P2.
   `config_sha256`.
 - **P1 — đo hình học**: `topology-probe.cc` 30 node / 300 s / chỉ beacon.
 
-## Đang vướng — hai việc cần anh/chị chốt
+## Đang vướng
 
-1. **Cặp (TxPower, sàn detect). Đề xuất `txPowerDbm = 19`, `minRssiDbm = -101`.**
-   Đo được degree **6.14**, cô lập 0.6%, R(0.5) = 625 m. Cấu hình hiện tại
-   (20 dBm / sàn −82 mặc định) cho degree **1.06** và cô lập **34.5%** — không
-   đạt cổng. `12 dBm/−101` bị loại bằng số học: ngân sách 102 dB đúng bằng cấu
-   hình hiện tại nên cùng degree 1.06.
-   Sửa hai giá trị đã có trong `fanet-tier2.conf` nên tôi không tự làm.
-2. **Độ cao gần như đóng băng trong một run.** z-span mỗi node trung bình
-   **107 m / dải 500 m**, **100% node quét dưới nửa dải**. Không dồn biên
-   (mật độ lớp biên 1.36× kỳ vọng đều), nhưng kịch bản là **vị trí 3D với động
-   lực học quasi-2D**. Ba lựa chọn: chấp nhận và khai báo / nới `MeanPitch` /
-   thu dải cao. Cả ba đều phải vào paper.
+Không có gì chặn. Hai việc của P1 đã chốt:
+
+1. **`txPowerDbm = 19`, `minRssiDbm = -101`** — degree **6.14**, cô lập 0.6%,
+   R(0.5) = 625 m. Config cũ (20 dBm / sàn −82) cho degree 1.06 và cô lập
+   34.5%, không đạt cổng. `12 dBm/−101` bị loại bằng số học: ngân sách 102 dB
+   đúng bằng config cũ nên cùng degree.
+2. **Độ cao quasi-tĩnh: chấp nhận và khai báo.** z-span mỗi node trung vị
+   **107 m / dải 500 m**, 100% node quét dưới nửa dải. Vận động dọc đóng góp
+   trung vị **0.7%** vào thay đổi khoảng cách làm link đổi trạng thái (3.2%
+   trước khi chiếu lên khoảng cách 3D). Phát biểu đúng: **vị trí 3D phân tầng
+   giữa các node, động lực học do chuyển động ngang** — đã ghi vào CLAUDE.md
+   và PLAN.md.
 
 ## Quyết định đã chốt
 
@@ -63,7 +68,14 @@ Báo cáo: `reports/P1-config.md`. Chưa bắt đầu P2.
   Hạ sàn mua **tầm phủ**, không mua bề rộng waterfall.
 - **degree 5.28 của `fanet-tier2.conf` không tái lập được** — đo lại ở đúng
   20 dBm/−82 ra 1.06 (chặt) hoặc 3.99 (lỏng). Scenario sinh ra nó
-  (`link-dataset-fanet.cc`) không có trong cây. Coi là tham chiếu tiên nghiệm.
+  (`link-dataset-fanet.cc`) không có trong cây nên **điều kiện đo chưa biết**;
+  không tuyên bố con số cũ sai, chỉ là không kiểm chứng được ở đây. Phép đo mới
+  có kiểm chứng hình học độc lập (0.92 ở R=300 vs 1.06 đo; ~6.0 ở R=625 vs 6.14
+  đo). Đã chú giải ngay trong conf, không xoá bảng cũ.
+- **Ngân sách link = TxPower − sàn.** `12 dBm/−101` và `20 dBm/−82` cùng 102 dB
+  nên cùng R trong phép đo cô lập, **nhưng không tương đương ở P2**: với sàn
+  −101 ràng buộc rơi vào `Threshold` SNR nên mép link dịch theo can nhiễu; sàn
+  −82 là hằng số tuyệt đối, không nhúc nhích dưới tải.
 - **Cảnh báo "degree > 11 làm abort" của conf đã lỗi thời.** Run ở degree
   22.33 chạy hết 300 s exit sạch. **Patch `phy-entity` lần đầu được kiểm thật
   (30 node × 300 s × 3 run, không hit assert) — mục Bất thường 5 của P0 đóng.**

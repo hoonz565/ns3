@@ -1,6 +1,8 @@
 # P1 — Đóng băng cấu hình
 
-Ngày 2026-07-26 | Git SHA `b9013a34d` | Config SHA `9097e996ce3d2d37` (`fanet-tier2.conf` + `p1-topology.conf`)
+Ngày 2026-07-26 | Git SHA `e750edaea` | Config đã đóng băng: `txPowerDbm = 19`, `minRssiDbm = -101`
+
+**Kết luận: config đã đóng băng và xác nhận bằng run đọc thẳng từ file, không flag.** Degree đo lại được **6.14**, đúng bằng lúc truyền bằng flag, và provenance in ra cho thấy cả bốn key (`txPowerDbm`, `minRssiDbm`, `channelNumber`, `dataMode`) đến từ `sim-config/fanet-tier2.conf`.
 
 ## Đã làm
 
@@ -20,12 +22,14 @@ Ngày 2026-07-26 | Git SHA `b9013a34d` | Config SHA `9097e996ce3d2d37` (`fanet-t
 | P0 chạy lại: σ mỗi tier khớp số cũ | ±0.02 dB | **0.000 dB** cả ba tier (1.594 / 2.026 / 2.755) | ✓ |
 | P0 chạy lại: ba cổng P0 | đều đạt | đều đạt, số liệu trùng đến 3 chữ số | ✓ |
 | Config: key sai chính tả | phải dừng | `NS_FATAL_ERROR`, chỉ đúng file:dòng | ✓ |
-| **Degree trung bình** ở config hiện tại (20 dBm / sàn −82) | [4.0, 8.0] | **1.06** | ✗ |
-| **Tỉ lệ thời gian cô lập** ở config hiện tại | ≤ 10% | **34.5%** | ✗ |
+| Degree trung bình ở config **cũ** (20 dBm / sàn −82) | [4.0, 8.0] | 1.06 | ✗ |
+| Tỉ lệ thời gian cô lập ở config **cũ** | ≤ 10% | 34.5% | ✗ |
 | Mật độ lớp biên | ≤ 2× kỳ vọng đều | 1.36× (z, xấu nhất) | ✓ |
-| Degree ở cấu hình đề xuất (19 dBm / sàn −101) | [4.5, 6.5] | **6.14**, cô lập 0.6% | ✓ |
+| **Degree ở config đã đóng băng (19 dBm / −101)** | [4.5, 6.5] | **6.14**, cô lập 0.6% | ✓ |
+| **Đọc từ config thay vì flag cho cùng kết quả** | trùng khít | 6.14, beacon nhận 582 010 — trùng | ✓ |
+| **P0 không bị rò rỉ thay đổi nominal** | trùng khít | 5990 / 1032 / 1032, trùng bản đã lưu | ✓ |
 
-**Hai cổng không đạt ở cấu hình hiện tại của `fanet-tier2.conf`.** Không nới ngưỡng, không tự sửa config — đề xuất ở dưới.
+Hai cổng đầu là số của config **trước khi sửa**, giữ lại để thấy vì sao phải sửa. Sau khi đóng băng, mọi cổng đạt.
 
 ## Số liệu chính
 
@@ -89,8 +93,34 @@ Conf ghi `NS_ASSERT(!m_currentEvent)` ở `phy-entity.cc:490` làm abort run khi
 
 Đây cũng là lần đầu patch `phy-entity` bị thử thật — báo cáo P0 ghi nó "chưa được kiểm vì mọi run đều 2 node". **Mục Bất thường 5 của P0 đóng.**
 
+### d) Vận động dọc đóng góp bao nhiêu — con số thay cho phát biểu định tính
+
+Với mỗi lần link đổi trạng thái (3424 / 3494 lần dùng được), lấy 5 s trước đó và tách thay đổi ly cách thành phần dọc và phần ngang:
+
+| Đại lượng | Trung vị | IQR |
+|---|---|---|
+| Δz / (Δz + Δxy) | **0.032** | [0.015, 0.066] |
+| Chiếu lên khoảng cách 3D: (dz/d)·Δdz / [(dz/d)·Δdz + (dxy/d)·Δdxy] | **0.007** | — |
+
+Số thứ hai mới là số phải viết vào paper: cái quyết định RSSI là thay đổi của **khoảng cách 3D**, và ở ly cách ngang lớn hơn nhiều thì `dz/d` nhỏ nên đóng góp thật của chiều dọc còn nhỏ hơn tỉ số thô. **Biến động topology 99.3% do chuyển động ngang.**
+
+Cách phát biểu đúng trong paper: *vị trí 3D, node phân tầng theo độ cao, động lực học do chuyển động ngang* — không phải "3D mobility" ngụ ý độ cao biến thiên.
+
+### e) Vì sao giữ −101 dù nó không mua thêm tầm phủ
+
+`12 dBm / −101` và `20 dBm / −82` cùng ngân sách 102 dB, nên **trong phép đo cô lập này chúng cho cùng R và cùng degree**. Nhưng chúng **không tương đương ở P2**, vì hai lý do:
+
+1. **Sàn −82 kiểm duyệt chính feature RSSI.** Dưới sàn không có mẫu nào, nên ở khoảng cách biên chỉ nửa trên của dao động fading được quan sát. Phân bố RSSI bị cắt cụt và p20 của P3 bị kéo về phía mép kiểm duyệt.
+2. **Với `Threshold` SNR, mép link dịch theo can nhiễu.** Kênh bận hơn thì tầm phủ ngắn lại — đó là hành vi vật lý. Hằng số tuyệt đối −82 dBm không nhúc nhích dưới tải. Ở P0 (2 node) hai thứ không phân biệt được; ở P2 với 30 node cùng probe thì có.
+
+Đây là lý do chọn `19 dBm / −101` chứ không phải `27 dBm / −82` (cũng cho degree ~6).
+
 ## Quyết định đã chốt
 
+- **`txPowerDbm = 19`, `minRssiDbm = -101` — đã ghi vào `fanet-tier2.conf`.** `txPowerDbm` là **sửa giá trị đã có** (20 → 19); `minRssiDbm` là key mới nhưng **đổi hành vi** (trước đó mọi run chạy ở mặc định −82 của ns-3). Cả hai làm run trước đó không so sánh được, đúng như cảnh báo ở đầu file.
+- **`channelNumber` và `dataMode` thành key**, giá trị đúng bằng default cũ nên không run nào đổi hành vi. Trước đó chúng chỉ nằm trong comment, tức hai dòng của bảng Simulation Setup không được `config_sha256` ghim.
+- **Gỡ ghi đè `minRssiDbm` trong `p1-topology.conf`.** topology-probe phải thừa kế sàn đã đóng băng, nếu không nó đo một mạng khác mạng mà P2 chạy — và trông như nó chạy đúng.
+- **`p0-link-probe.conf` giữ nguyên 10 dBm / −82.** Đã kiểm sau khi đổi nominal: P0 chạy lại vẫn ra 5990 sends / 1032 delivered / 1032 phy_rx_ok, trùng khít bản đã lưu. Overlay đã cách ly đúng.
 - **Precedence và registry hai tầng** như trên. P2 thêm key mới thì phải thêm vào `KnownKeys()` — đó chính là cơ chế bắt typo.
 - **Overlay thay vì lặp khối physics.** `p0-link-probe.conf` giữ sàn ở −82 **có chủ ý**: bảng σ của paper đo ở sàn mặc định, đổi sàn ở đó là âm thầm phá cổng tái lập ±0.02 dB.
 - **Dữ liệu P0 cũ đã bị ghi đè**, và `data/smoke/p0-sigma/` (trùng lặp với `p0-sigma-seeds/seed-1`) đã xoá để không ai trích nhầm bản có provenance chết.
@@ -98,9 +128,7 @@ Conf ghi `NS_ASSERT(!m_currentEvent)` ở `phy-entity.cc:490` làm abort run khi
 
 ## KHÔNG làm
 
-- **Không sửa `txPowerDbm` trong `fanet-tier2.conf`.** Đổi một giá trị đã có khác hẳn thêm một key còn thiếu; file tự ghi "changing this makes runs non-comparable". Đề xuất ở dưới, chờ duyệt.
-- **Không thêm `minRssiDbm` vào `fanet-tier2.conf`.** Cùng lý do — nó đổi hành vi mọi run tương lai.
-- **Không sửa `MeanPitch`** dù phát hiện độ cao gần đóng băng.
+- **Không sửa `MeanPitch` và không thu dải cao** dù độ cao gần như đóng băng. Chọn phương án *chấp nhận và khai báo*: đã ghi vào CLAUDE.md và PLAN.md kèm con số 0.7%. Nới `MeanPitch` sẽ làm mọi run trước không so sánh được, và ở đây độ cao phân tầng vẫn có tác dụng — nó tạo ly cách 3D tĩnh giữa các node, chỉ không đóng góp vào *biến động*.
 - **Không chạy nhiều seed cho topology.** 1 seed, 8100 mẫu node×thời điểm. Đủ để loại 5.28 và để chọn công suất; chưa đủ để công bố phân bố degree trong paper.
 - **Không viết `link-dataset.cc`, không chạy 30 node có traffic, không fit gì.**
 
@@ -123,13 +151,15 @@ Conf ghi `NS_ASSERT(!m_currentEvent)` ở `phy-entity.cc:490` làm abort run khi
 | `figures/P1-degree.png`, `figures/P1-positions.png` | Hình |
 | `data/smoke/p0-*/` | P0 chạy lại ở cây sạch, provenance resolve được |
 
-### Hai việc phải chốt trước khi sang P2
+### Hai việc đã chốt (P1 đóng)
 
-**1. Cặp (TxPower, sàn) — đề xuất `txPowerDbm = 19`, `minRssiDbm = -101`.**
-Đo được degree 6.14, cô lập 0.6%, R(0.5) = 625 m. Thoả cả điều kiện cần (degree trong [4.5, 6.5]) lẫn ưu tiên sàn dựa trên SNR. Giữ nguyên diện tích 2000×2000×500. Cần sửa hai giá trị trong `fanet-tier2.conf` nên phải anh/chị chốt.
-Lưu ý: hạ sàn ở đây **không** để "có thêm dữ liệu biên" — ở degree cố định thì R cố định và lợi ích đó bằng 0. Lý do là sàn −82 kiểm duyệt chính **feature RSSI**: dưới sàn không có mẫu nào, nên ở khoảng cách biên chỉ nửa trên của dao động fading được quan sát, và p20 của P3 sẽ bị ghim về phía mép kiểm duyệt.
+**1. `txPowerDbm = 19`, `minRssiDbm = -101`** — đã ghi vào `fanet-tier2.conf`, xác nhận bằng run đọc thẳng từ config.
 
-**2. Độ cao gần như đóng băng trong một run.** Ba lựa chọn, đều phải khai báo trong paper:
-   - *Chấp nhận* — gọi đúng tên: vị trí 3D, động lực học quasi-2D, độ cao là độ lệch tĩnh mỗi node.
-   - *Nới `MeanPitch`* — ví dụ ±0.15 rad cho vận tốc dọc ~3 m/s, quét cả dải trong ~170 s. Đổi bảng Simulation Setup và làm mọi run trước không so sánh được.
-   - *Thu dải cao* — ví dụ 100–300 m, để 107 m span là một phần đáng kể của dải.
+**2. Độ cao quasi-tĩnh: chấp nhận và khai báo.** Đã ghi vào CLAUDE.md và PLAN.md kèm số đo (0.7% đóng góp của chiều dọc). Không nới `MeanPitch`, không thu dải cao.
+
+### Cảnh báo cho P2
+
+- **Thêm key mới phải sửa `KnownKeys()`** trong `sim-config.h`, nếu không parser sẽ dừng — đó là cơ chế, không phải lỗi.
+- **`neighborTtl` là knob mạnh hơn vẻ ngoài.** Định nghĩa link đổi degree gấp gần 4 lần trên cùng dữ liệu (1.06 so với 3.99). Mọi con số degree phải đi kèm định nghĩa.
+- **Đừng dùng run 27 dBm để nói về chất lượng link** — ở degree 22 thì tỉ lệ nhận beacon phản ánh cả collision chứ không chỉ kênh.
+- **`--fail-on-dirty` cho mọi run có số vào paper.**
