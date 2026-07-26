@@ -303,6 +303,29 @@ Thắng hoặc hoà: lập luận là **vị trí cho hình học, RSSI cho kên
 
 **Đầu ra.** `(a,b,c)` đông lạnh + bảng β kèm CI và p-value + scatter LinkScore dự đoán so với PDR thực đo trên test + tỉ số β_slope/β_RSSI.
 
+### Limitations phải khai báo (thêm 2026-07-27, từ P2 batch)
+
+**Kiểm duyệt vật lý tại sàn detect — quy tắc 5 KHÔNG phủ trường hợp này.**
+Fit trên feature thô tránh được kiểm duyệt do *chuẩn hoá/clip*, nhưng mẫu
+RSSI dưới sàn detect **chưa bao giờ tồn tại trong dataset**: frame dưới sàn
+không được giải mã nên không sinh mẫu. Có một trần cứng, do phần cứng máy
+thu đặt, về lượng vùng-link-xấu quan sát được — không tham số phân tích nào
+gỡ được. Bằng chứng từ 35 seed: **p20 của `rssi_level` = −88.6 dBm, cách sàn
+hiệu dụng −90 dBm (Threshold 4 dB SNR trên nền −94) đúng 1.4 dB; SD giữa
+seed của p20 là 0.022 dB so với 0.16 dB của p80** — đầu dưới của phân bố do
+máy thu ghim, đầu trên do topology quyết định. Hệ quả cho diễn giải: sigmoid
+của GLM chỉ được neo bằng link còn nghe được; phần "link đã chết hẳn về
+RSSI" đóng góp nhãn (qua probe theo beacon TTL) nhưng feature RSSI của nó
+là mẫu bị chọn lọc phía trên sàn.
+
+Hai limitation đo được khác cùng nguồn (số trong `reports/P2-batch.md`):
+slope có **nhiễu đo dị phương sai theo khoảng cách** (rssi_n median 38 → 4
+từ bin gần ra xa; SE(slope) ~0.22 → ~1.2 dB/s) → attenuation bias kéo
+β_slope về 0 mạnh nhất ở link biên — nếu β_slope yếu, fit riêng tập
+`rssi_n ≥ 20` để tách "không mang tin" khỏi "bị đo ồn"; và
+**corr(rssi_level, retry_rate) = −0.79** toàn tập — mô hình chỉ-retry (AR
+baseline) trong bảng đối chứng là phép thử quyết định, không phải tuỳ chọn.
+
 ---
 
 ## P6 — Kiểm chứng mức đường đi (Tầng B)

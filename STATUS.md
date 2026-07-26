@@ -7,20 +7,21 @@ Cập nhật lần cuối: 2026-07-27
 
 ## Phase hiện tại
 
-**P2 — BATCH CALIBRATION XONG, 5/5 SEED PASS CẢ 7 CỔNG. `data/calib/`
-= seeds 1–5, 105 869 dòng. ĐANG CHỜ DUYỆT để chạy seeds 6–35 →
-`data/train/` (`scripts/run_p2_batch.sh 6 35 data/train`, ~1.5 h; điều kiện
-dừng cài sẵn trong runner: ≥3 seed trượt bất kỳ cổng nào / abort / dirty →
-dừng). Seeds 36–40 KHÔNG sinh — `run_tests.sh` fail nếu `data/eval/` không
-rỗng (bất biến kiểm tra được, chạy trước mọi batch).**
+**P2 HOÀN TẤT — CHỜ DUYỆT SANG P3. Dataset đóng: 35/35 seed PASS cả 7 cổng,
+`data/calib/` = seeds 1–5 (105 869 dòng), `data/train/` = seeds 6–35
+(652 432 dòng), tổng 758 301 dòng, provenance đồng nhất (một SHA
+`c90310d86`, một binary hash, cây sạch suốt hai batch). `data/eval/` RỖNG —
+bất biến `run_tests.sh` cưỡng chế tới P10. Báo cáo batch + ba phân tích
+tiền-P5: `reports/P2-batch.md`.**
 
-Ổn định qua 5 seed (bảng đầy đủ ở mục cuối `reports/P2-harness.md`):
-near-q **0.266 ± 0.008** (ngưỡng 0.35 cách ~10 SD), degree **4.90 ± 0.09**
-(cổng 4.0 cách ~10 SD), **p20 rssi −88.61 ± 0.022 dB / p80 −84.78 ± 0.16 dB**
-— tiêu chí "SD < 0.5 dB thì 5-seed calibration đóng băng an toàn" đạt với
-biên 3–20×. Cảnh báo cho P3: p20 ổn định một phần vì TỰA VÀO SÀN detect hiệu
-dụng −90 dBm (đuôi dưới bị nén); dải chuẩn hoá p80−p20 chỉ ~3.8 dB — cân
-nhắc báo thêm p5/p95 khi so hai bản chuẩn hoá.
+Ba phân tích (không mô phỏng thêm): (1) `rssi_n` tụt 38 → 4 từ bin gần ra
+xa → SE(slope) ~0.22 → ~1.2 dB/s — attenuation bias kéo β_slope về 0 mạnh
+nhất ở link biên, P5 phải fit riêng `rssi_n ≥ 20` nếu β_slope yếu; (2) SD
+liên-link < trong-link ở MỌI bin (0.39–0.68) — mean RSSI không phân biệt
+link trong cùng bin (kênh không có shadowing per-link — khai báo, và khớp
+quy tắc 11: giá trị vượt-khoảng-cách nằm ở slope); (3) corr(level, retry) =
+−0.793 toàn tập (r² 63%) — AR baseline của P5 là phép thử quyết định;
+level~slope = 0.000 toàn cục (VIF ≈ 1, mối lo cộng tuyến không thành).
 
 Thiết kế Tier 2 đã đổi và đã ghi vào tài liệu TRƯỚC khi viết code: OLSR chuẩn
 (chỉ tạo tải, mù LinkScore) + CBR đa chặng + beacon L2 10 Hz (nguồn duy nhất
@@ -61,9 +62,15 @@ hay không quyết ở P5. Xem CLAUDE.md "Three simulation tiers".
 
 ## Đang vướng
 
-**Chờ duyệt chạy seeds 6–35.** Câu hỏi eval-seed đã đóng: KHÔNG sinh 36–40,
-`data/eval/` rỗng là bất biến do `run_tests.sh` cưỡng chế tới P10. Không còn
-vấn đề kỹ thuật mở nào.
+**Chờ duyệt sang P3.** Một việc để ngỏ có chủ ý: hiệu chuẩn lại
+`gateNearQMax = 0.35` nay đã có phân bố 35 điểm (mean 0.281, SD 0.022, max
+0.326 — ngưỡng hiện tại nằm đúng mép mean+3SD; SD toàn tập gấp 3× SD calib
+nên biên mỏng hơn calib gợi ý). Đổi ngưỡng ảnh hưởng các batch sau nên để
+anh/chị quyết cùng lúc duyệt P3.
+
+P3 nhận ba cảnh báo từ P2 (cuối `reports/P2-batch.md`): p20 tựa sàn detect
+(báo thêm p5/p95 khi so hai bản chuẩn hoá); dải p80−p20 chỉ ~3.8 dB; đuôi
+phân bố slope một phần là nhiễu đo của link xa.
 
 ## Quyết định đã chốt
 
@@ -146,6 +153,6 @@ vấn đề kỹ thuật mở nào.
 
 ## Chưa chạm
 
-`frozen/` (rỗng), `data/train/` (rỗng — chờ duyệt seeds 6–35), `data/eval/`
-(RỖNG, cưỡng chế bằng `run_tests.sh` tới P10). Chưa fit gì, chưa hiệu chuẩn
-gì (P3/P5 chưa bắt đầu). `data/calib/` = seeds 1–5 đã có, dùng cho P3.
+`frozen/` (rỗng — `normalization.json` là việc của P3), `data/eval/` (RỖNG,
+cưỡng chế bằng `run_tests.sh` tới P10). Chưa fit gì, chưa hiệu chuẩn gì.
+Dataset P2 đã đóng: `data/calib/` (P3 dùng), `data/train/` (P4/P5 dùng).
