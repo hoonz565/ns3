@@ -746,6 +746,7 @@ main(int argc, char* argv[])
     double minRssiDbm = -101.0;
     uint32_t channelNumber = 36;
     std::string dataMode = "OfdmRate6Mbps";
+    uint32_t frameRetryLimit = 2;
     double m0 = 8.0;
     double m1 = 5.0;
     double m2 = 3.0;
@@ -804,6 +805,10 @@ main(int argc, char* argv[])
     cfg.Add(cmd, "minRssiDbm", "ThresholdPreambleDetectionModel::MinimumRssi (dBm)", minRssiDbm);
     cfg.Add(cmd, "channelNumber", "So kenh 5 GHz", channelNumber);
     cfg.Add(cmd, "dataMode", "WifiMode", dataMode);
+    cfg.Add(cmd,
+            "frameRetryLimit",
+            "dot11ShortRetryLimit: so ATTEMPT toi da moi frame, toan he thong",
+            frameRetryLimit);
     cfg.Add(cmd, "nakagamiM0", "Nakagami m0", m0);
     cfg.Add(cmd, "nakagamiM1", "Nakagami m1", m1);
     cfg.Add(cmd, "nakagamiM2", "Nakagami m2", m2);
@@ -908,6 +913,10 @@ main(int argc, char* argv[])
     // o P0: gian nhip khong chua duoc). Ap cho MOI queue — mot radio moi
     // node nen day la queue chung cua ca OLSR/CBR/probe/beacon, co chu y.
     Config::SetDefault("ns3::WifiMacQueue::MaxDelay", TimeValue(MilliSeconds(maxQueueDelayMs)));
+    // Quyet dinh toan he thong (CLAUDE.md bang Simulation Setup): tran so
+    // attempt moi frame. MaxSsrc/MaxSlrc cu la OBSOLETE trong ns-3.45; knob
+    // con hoat dong la WifiMac::FrameRetryLimit (= dot11ShortRetryLimit).
+    Config::SetDefault("ns3::WifiMac::FrameRetryLimit", UintegerValue(frameRetryLimit));
 
     WifiHelper wifi;
     wifi.SetStandard(WIFI_STANDARD_80211a);

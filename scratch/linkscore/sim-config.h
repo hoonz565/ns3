@@ -80,6 +80,7 @@ KnownKeys()
         "minRssiDbm",
         "channelNumber",
         "dataMode",
+        "frameRetryLimit",
         "nakagamiM0",
         "nakagamiM1",
         "nakagamiM2",
