@@ -22,25 +22,47 @@ Báo cáo: `reports/P0-instrumentation.md`.
     **−1.000000**, 0 lần RSSI tăng.
   - Cổng 2 — MAC retry: 19 973 retry / 21 072 attempt; 6 bin sạch dưới 70 m,
     55 bin có retry. Callback không câm.
-  - Cổng 3 — residual σ theo tier Nakagami: m=8 → **1.573** (dự kiến 1.585);
-    m=5 → **1.961** (dự kiến 2.043); m=3 → **2.716** (dự kiến 2.729).
-    Tất cả trong ±0.25 dB.
+  - Cổng 3 — residual σ theo tier Nakagami, **6 seed / 47 947 mẫu**: m=8 →
+    **1.594** (dự kiến 1.585); m=5 → **2.026** (dự kiến 2.043); m=3 →
+    **2.755** (dự kiến 2.729). Mean residual cũng khớp dự đoán Jensen ở cả ba
+    tier — hai mô men khớp đồng thời.
+  - Bất thường +0.09 dB ở 1 seed: **đã loại trừ**, gộp 6 seed cho
+    +0.0105 ± 0.0113 dB (z = +0.93). Hiện vật RNG của seed 1.
+  - Đo tầm phủ: d(0.5) = **107 m** ở 10 dBm/sàn −82; **250 m** ở 10 dBm/sàn
+    −101; **501 m** ở 17 dBm/sàn −101.
+- **11 run**, mỗi run một `run_manifest.json`. Đã commit (5 commit).
 
 ## Đang vướng
 
-Không có gì chặn. Hai câu hỏi P1 phải trả lời, phát sinh từ số liệu P0:
+Không có gì chặn. P1 chốt hai tham số, đã có số liệu thật cho cả hai:
 
-1. **Sàn kiểm duyệt RSSI −82 dBm.** `ThresholdPreambleDetectionModel` mặc định
-   có `MinimumRssi = −82 dBm`: frame yếu hơn thế không bao giờ được detect, cao
-   hơn giới hạn do nhiễu 7 dB. Vị trí điểm link chết do hằng số này quyết định,
-   không do mô hình sai số bit. Là **attribute**, sửa bằng config, không cần
-   patch — nhưng phải khai báo trong paper nếu đổi.
-2. **Cặp (TxPower, diện tích) trong PLAN.md không nhất quán.** Tầm phủ đo được
-   là **114 m**, không phải ~500 m như PLAN ghi → degree ≈ **0.30** ở
-   2000×2000 m với 30 node, không phải 6. Vá bằng TxPower ≈ 24 dBm (giữ diện
-   tích) hoặc thu diện tích về ~444×444 m (giữ 10 dBm).
+1. **`MinimumRssi` — đề xuất hạ về −101 dBm.** Mặc định ns-3 là −82 dBm, một
+   **sàn cứng trên RSSI** cao hơn giới hạn do nhiễu 7 dB. Hạ về −101 thì ràng
+   buộc chuyển sang `Threshold` (4 dB SNR) → sàn hiệu dụng −90 dBm, dựa trên
+   SNR tức dựa trên vật lý. Là attribute, không cần patch, nhưng phải khai báo
+   trong paper.
+   **Lưu ý ngược trực giác:** hạ sàn KHÔNG làm vùng waterfall rộng ra theo dB
+   (5.38 → 5.60 dB). Bề rộng đó là bề rộng phân bố fading (≈ 2.56σ), không
+   phải của đường cong PER. Nó mua **tầm phủ**, và nhờ đó vùng biên trải ra
+   nhiều mét hơn (62 → 146 m), tức nhiều cặp node ở vùng biên hơn.
+2. **TxPower — đề xuất 17 dBm**, giữ 2000×2000×500 m. Đo được d(0.5) = 501 m,
+   khớp tính toán 16.1 dBm. (Ước lượng 10 dBm → 500 m trong PLAN.md dùng
+   ngưỡng −96 dBm, quá lạc quan.)
+   **Không chốt bằng công thức degree**: chiều cao hộp ≈ R nên 2D cho 5.7, 3D
+   cho 7.6. Phải đo degree trong smoke test P2.
 
 Chi tiết và số liệu: `reports/P0-instrumentation.md`.
+
+## P2 phải làm, phát sinh từ P0
+
+1. **Nhãn per-attempt, không post-ARQ.** `1 − final_fails/first_attempts` bằng
+   đúng 1.000 suốt tới 400 m trong khi per-attempt đã tụt về 0.556 — bão hoà
+   đúng kiểu chế độ hỏng "pdr_future dồn hết ở 1.0", và `first_attempts` không
+   suy được vững từ bộ đếm cộng dồn (ra giá trị âm ở vùng chết). Dùng
+   `trials_future` = số attempt, `fails_future` = số `MacTxDataFailed`.
+2. **Ngừng probe neighbor không còn nghe thấy.** Giãn nhịp một mình không chặn
+   được backlog: 10 ms cho retry_rate 0.9478, 50 ms cho 0.9475.
+3. **Hook trace drop của `WifiMacQueue`** để đếm (không đưa vào nhãn).
 
 ## Quyết định đã chốt
 
