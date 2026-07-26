@@ -201,16 +201,31 @@ def build_manifest(
     manifest: dict = {"phase": phase, "timestamp": iso_utc()}
     manifest.update(git_state())
 
-    if config is None:
-        manifest["config_path"] = None
+    # Nhiều file config ghép được (file sau ghi đè file trước), nên manifest
+    # phải ghi cả danh sách theo thứ tự: chỉ hash file cuối là mất phần lớn
+    # tham số, chỉ hash file đầu là mất phần bị ghi đè.
+    config_list = [] if config is None else ([config] if isinstance(config, str) else list(config))
+    if not config_list:
+        manifest["config_paths"] = []
         manifest["config_sha256"] = None
+        manifest["config_sha256_each"] = []
     else:
-        config_path = Path(config)
-        resolved = config_path if config_path.is_absolute() else REPO_ROOT / config_path
-        if not resolved.is_file():
-            raise ManifestError(f"config không tồn tại: {config}")
-        manifest["config_path"] = config
-        manifest["config_sha256"] = sha256_of(resolved)
+        digest = hashlib.sha256()
+        each = []
+        for raw in config_list:
+            config_path = Path(raw)
+            resolved = config_path if config_path.is_absolute() else REPO_ROOT / config_path
+            if not resolved.is_file():
+                raise ManifestError(f"config không tồn tại: {raw}")
+            one = sha256_of(resolved)
+            each.append(f"{raw}@sha256:{one}")
+            # Hash gộp theo thứ tự nạp: đổi thứ tự file là đổi tham số hiệu dụng,
+            # nên nó phải ra hash khác.
+            digest.update(raw.encode())
+            digest.update(bytes.fromhex(one))
+        manifest["config_paths"] = config_list
+        manifest["config_sha256"] = digest.hexdigest()
+        manifest["config_sha256_each"] = each
 
     if binary is None:
         manifest["binary_path"] = None
@@ -310,7 +325,14 @@ def parse_args(argv=None) -> argparse.Namespace:
     )
     p.add_argument("--phase", required=True, help="P0..P10")
     p.add_argument("--out", required=True, help="đường dẫn run_manifest.json")
-    p.add_argument("--config", help="file config, ví dụ config/nominal.yaml")
+    p.add_argument(
+        "--config",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="file sim-config; lặp lại được theo đúng thứ tự truyền cho scenario "
+        "(file sau ghi đè file trước)",
+    )
     p.add_argument("--binary", help="binary ns-3 sắp chạy")
     p.add_argument(
         "--no-binary",

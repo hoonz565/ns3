@@ -23,6 +23,8 @@
  *   ./ns3 run "scratch/linkscore/link-probe -- --fading=true  --out=data/smoke/p0-fading"
  */
 
+#include "sim-config.h"
+
 #include "ns3/core-module.h"
 #include "ns3/mobility-module.h"
 #include "ns3/network-module.h"
@@ -180,30 +182,46 @@ main(int argc, char* argv[])
     double probeIntervalMs = 10.0;
     uint32_t probeBytes = 512;
     std::string outDir = "data/smoke/p0";
+    // Hai co nay da duoc xu ly boi ConfigPathsFromArgv/FlagInArgv truoc Parse;
+    // dang ky lai voi CommandLine chi de no khong bao "unknown argument", va de
+    // chung hien trong --PrintHelp.
+    std::string configHelp;
+    bool allowUnknown = false;
+
+    // Config truoc CommandLine: default < config < flag (sim-config.h).
+    linkscore::SimConfig cfg;
+    cfg.Load(linkscore::ConfigPathsFromArgv(argc, argv),
+             linkscore::FlagInArgv(argc, argv, "--allowUnknownKeys"));
 
     CommandLine cmd(__FILE__);
+    // Chi CLI, khong phai key config: moi run mot gia tri.
     cmd.AddValue("seed", "RngRun", seed);
-    cmd.AddValue("fading", "Bat NakagamiPropagationLossModel", fading);
-    cmd.AddValue("txPower", "Cong suat phat (dBm)", txPowerDbm);
-    cmd.AddValue("exponent", "So mu path loss cua LogDistance", exponent);
-    cmd.AddValue("channel", "So kenh 5 GHz (36 -> 5180 MHz)", channelNumber);
-    cmd.AddValue("dataMode", "WifiMode cho ConstantRateWifiManager", dataMode);
-    cmd.AddValue("m0", "Nakagami m khi d < distance1", m0);
-    cmd.AddValue("m1", "Nakagami m khi distance1 <= d < distance2", m1);
-    cmd.AddValue("m2", "Nakagami m khi d >= distance2", m2);
-    cmd.AddValue("nakDistance1", "Nakagami Distance1 (m)", nakDistance1);
-    cmd.AddValue("nakDistance2", "Nakagami Distance2 (m)", nakDistance2);
-    cmd.AddValue("minRssi",
-                 "ThresholdPreambleDetectionModel::MinimumRssi (dBm), san cung tren RSSI",
-                 minRssiDbm);
-    cmd.AddValue("altitude", "Do cao ca hai node (m)", altitude);
-    cmd.AddValue("startDist", "Khoang cach ban dau (m)", startDist);
-    cmd.AddValue("speed", "Toc do node 1 bay ra xa (m/s)", speed);
-    cmd.AddValue("simTime", "Thoi gian mo phong (s)", simTime);
-    cmd.AddValue("probeIntervalMs", "Chu ky probe (ms)", probeIntervalMs);
-    cmd.AddValue("probeBytes", "Payload probe (B)", probeBytes);
     cmd.AddValue("out", "Thu muc ghi rx.csv / tx.csv / meta.json", outDir);
+    cmd.AddValue("config", "File sim-config (lap lai duoc, file sau ghi de)", configHelp);
+    cmd.AddValue("allowUnknownKeys", "Chi canh bao thay vi dung khi config co key la", allowUnknown);
+    // Key config: ten flag trung ten key.
+    cfg.Add(cmd, "p0Fading", "Bat NakagamiPropagationLossModel", fading);
+    cfg.Add(cmd, "txPowerDbm", "Cong suat phat (dBm)", txPowerDbm);
+    cfg.Add(cmd, "exponent", "So mu path loss cua LogDistance", exponent);
+    cfg.Add(cmd, "channelNumber", "So kenh 5 GHz (36 -> 5180 MHz)", channelNumber);
+    cfg.Add(cmd, "dataMode", "WifiMode cho ConstantRateWifiManager", dataMode);
+    cfg.Add(cmd, "nakagamiM0", "Nakagami m khi d < nakagamiD1", m0);
+    cfg.Add(cmd, "nakagamiM1", "Nakagami m khi nakagamiD1 <= d < nakagamiD2", m1);
+    cfg.Add(cmd, "nakagamiM2", "Nakagami m khi d >= nakagamiD2", m2);
+    cfg.Add(cmd, "nakagamiD1", "Nakagami Distance1 (m)", nakDistance1);
+    cfg.Add(cmd, "nakagamiD2", "Nakagami Distance2 (m)", nakDistance2);
+    cfg.Add(cmd,
+            "minRssiDbm",
+            "ThresholdPreambleDetectionModel::MinimumRssi (dBm), san cung tren RSSI",
+            minRssiDbm);
+    cfg.Add(cmd, "p0Altitude", "Do cao ca hai node (m)", altitude);
+    cfg.Add(cmd, "p0StartDist", "Khoang cach ban dau (m)", startDist);
+    cfg.Add(cmd, "p0Speed", "Toc do node 1 bay ra xa (m/s)", speed);
+    cfg.Add(cmd, "simTime", "Thoi gian mo phong (s)", simTime);
+    cfg.Add(cmd, "p0ProbeIntervalMs", "Chu ky probe (ms)", probeIntervalMs);
+    cfg.Add(cmd, "probeBytes", "Payload probe (B)", probeBytes);
     cmd.Parse(argc, argv);
+    cfg.Finish();
 
     RngSeedManager::SetSeed(1);
     RngSeedManager::SetRun(seed);
@@ -330,6 +348,12 @@ main(int argc, char* argv[])
          << "  \"scenario\": \"link-probe\",\n"
          << "  \"phase\": \"P0\",\n"
          << "  \"seed\": " << seed << ",\n"
+         << "  \"config_files\": [";
+    for (size_t i = 0; i < cfg.Files().size(); ++i)
+    {
+        meta << (i ? ", " : "") << '"' << cfg.Files()[i] << '"';
+    }
+    meta << "],\n"
          << "  \"fading\": " << (fading ? "true" : "false") << ",\n"
          << "  \"tx_power_dbm\": " << txPowerDbm << ",\n"
          << "  \"exponent\": " << exponent << ",\n"
