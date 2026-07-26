@@ -325,6 +325,8 @@ Không dùng min hay trung bình: đường 6 chặng mỗi link 0.95 cho tích 
 
 **Chỉ số.** Tỉ lệ trúng top-1 và phân bố regret. Regret quan trọng hơn: trúng 60% nghe kém, nhưng regret trung bình 2% PDR thì LinkScore vẫn rất tốt — chọn nhầm sang đường gần tương đương.
 
+**Baseline thứ ba: đường MIN-HOP** (thêm 2026-07-27, từ P2 run 2). So regret ba chiều: **oracle / LinkScore / min-hop** — cost cạnh của min-hop là 1 (đúng metric OLSR dùng thật). Miễn phí vì dữ liệu đã có, và nó định lượng trực tiếp tiền đề của đề tài: P2 đo được q_cbr ≈ q_probe ≈ 0.82 per-attempt — đường OLSR min-hop chọn không tốt hơn link ngẫu nhiên được probe, vì ít hop nhất = link dài nhất = link biên. Regret của min-hop so với oracle chính là con số cho phần Motivation của paper.
+
 Quét mọi cặp nguồn–đích và mọi cửa sổ. Vài phút Python thay cho hàng giờ mô phỏng. Dùng luôn để so nhiều bộ trọng số: GLM, đều nhau (1/3,1/3,1/3), chỉ RSSI.
 
 **Giới hạn ghi vào paper.** Tích các xác suất giả định link hỏng độc lập. Không dây thì không — chặng liền kề dùng chung kênh và tự nhiễu nhau, nên PDR thực của đường dài **tệ hơn** tích số. Đây là lý do ETT/WCETT ra đời sau ETX; nói rõ mình kế thừa giới hạn nào.
