@@ -62,6 +62,13 @@ def median(xs: list[float]) -> float:
     return s[n // 2] if n % 2 else 0.5 * (s[n // 2 - 1] + s[n // 2])
 
 
+def percentile(xs: list[float], q: float) -> float:
+    if not xs:
+        return float("nan")
+    s = sorted(xs)
+    return s[int(q * (len(s) - 1))]
+
+
 def pearson(xs: list[float], ys: list[float]) -> float:
     n = len(xs)
     if n < 3:
@@ -142,7 +149,17 @@ def main(argv=None) -> int:
     corr_rssi: list[float] = []
     corr_retry: list[float] = []
     by_bin: dict[str, tuple[list[float], list[float]]] = {}
+    # q theo bin, TÁCH lớp: [trials_probe, fails_probe, trials_cbr, fails_cbr]
+    # — off-path (probe) so với on-path (CBR). Trả lời "link CBR đi qua có
+    # tập trung ở bin xa không" (cơ chế min-hop chọn link dài).
+    q_bin: dict[str, list[float]] = {}
     bin_edges = [0, 200, 400, 600, 800, float("inf")]
+
+    def bin_name(dist: float) -> str:
+        for lo, hi in zip(bin_edges, bin_edges[1:]):
+            if lo <= dist < hi:
+                return f"{lo:.0f}-{hi:.0f} m" if hi != float("inf") else f">={lo:.0f} m"
+        return "?"
 
     with rows_path.open() as fh:
         for row in csv.DictReader(fh):
@@ -152,6 +169,11 @@ def main(argv=None) -> int:
             rssi_all.append(float(row["rssi_level"]))
             if float(row["trials_cbr"]) == 0:
                 n_probe_only += 1
+            qb = q_bin.setdefault(bin_name(float(row["dist_m"])), [0.0, 0.0, 0.0, 0.0])
+            qb[0] += float(row["trials_probe"])
+            qb[1] += float(row["fails_probe"])
+            qb[2] += float(row["trials_cbr"])
+            qb[3] += float(row["fails_cbr"])
             if float(row["fails_future"]) > 0:
                 n_fails_pos += 1
             if pdr >= 1.0:
@@ -214,7 +236,13 @@ def main(argv=None) -> int:
           f"(lệch {100.0 * (degree - P1_DEGREE_REF) / P1_DEGREE_REF:+.1f}%), "
           f"cô lập {100.0 * float(summary['isolated_frac']):.1f}% node-thời-gian")
     print(f"dòng thiếu retry feature  : {n_retry_empty}  ({pct(n_retry_empty):.1f}% — GLM sẽ bỏ âm thầm)")
-    print(f"median trials_future      : {median(trials_all):.0f}")
+    n_low_trials = sum(1 for t in trials_all if t < 5)
+    print(f"trials_future p10/p25/p50/p90: {percentile(trials_all, 0.10):.0f} / "
+          f"{percentile(trials_all, 0.25):.0f} / {percentile(trials_all, 0.50):.0f} / "
+          f"{percentile(trials_all, 0.90):.0f}   (% dòng trials < 5: {pct(n_low_trials):.1f}%)")
+    print(f"fails_slipped (cửa sổ)    : {summary['fails_slipped_windows']}  "
+          f"({100.0 * float(summary['fails_slipped_windows']) / n_rows:.2f}% dòng — "
+          f"L nhỏ hơn thì frame kết thúc nhanh hơn, số này phải giảm theo L)")
     print(f"pdr ghim tại 1.0 / 0.0    : {pct(n_pinned_hi):.1f}% / {pct(n_pinned_lo):.1f}%")
     print(f"rssi_level median         : {median(rssi_all):.1f} dBm")
     print(f"fails không quy được lớp  : {summary['fails_unattributed']}")
@@ -248,6 +276,17 @@ def main(argv=None) -> int:
     print(f"  đo lường (beacon+probe) / ứng dụng (cbr+olsr): "
           f"{meas:.1f} / {app:.1f} s = {meas / app if app else float('inf'):.2f}×")
 
+    print("\nq per-attempt theo bin, tách off-path (probe) / on-path (CBR) — và CBR")
+    print("dồn trials vào bin nào (bằng chứng cơ chế min-hop chọn link dài):")
+    tot_tp = sum(v[0] for v in q_bin.values()) or 1.0
+    tot_tc = sum(v[2] for v in q_bin.values()) or 1.0
+    print(f"  {'bin':<12}{'q_probe':>9}{'q_cbr':>9}{'%trials_probe':>15}{'%trials_cbr':>13}")
+    for name in sorted(q_bin):
+        tp, fp, tc, fc = q_bin[name]
+        qp = f"{fp / tp:.3f}" if tp else "—"
+        qc = f"{fc / tc:.3f}" if tc else "—"
+        print(f"  {name:<12}{qp:>9}{qc:>9}{100.0 * tp / tot_tp:>14.1f}%{100.0 * tc / tot_tc:>12.1f}%")
+
     print("\ncorr(retry_rate, rssi_level) — quy tắc 13, kỳ vọng âm sâu:")
     print(f"  toàn cục: Pearson {pearson(corr_retry, corr_rssi):+.3f}  "
           f"Spearman {spearman(corr_retry, corr_rssi):+.3f}  (n={len(corr_retry)})")
@@ -262,6 +301,18 @@ def main(argv=None) -> int:
         "retry_empty_pct": pct(n_retry_empty),
         "probe_only_pct": pct(n_probe_only),
         "median_trials": median(trials_all),
+        "trials_p10_p25_p50_p90": [percentile(trials_all, q) for q in (0.10, 0.25, 0.50, 0.90)],
+        "trials_below_5_pct": pct(n_low_trials),
+        "fails_slipped_windows": summary["fails_slipped_windows"],
+        "q_by_bin_probe_cbr": {
+            name: {
+                "q_probe": (v[1] / v[0]) if v[0] else None,
+                "q_cbr": (v[3] / v[2]) if v[2] else None,
+                "trials_probe": v[0],
+                "trials_cbr": v[2],
+            }
+            for name, v in sorted(q_bin.items())
+        },
         "pinned_hi_pct": pct(n_pinned_hi),
         "pinned_lo_pct": pct(n_pinned_lo),
         "degree_vs_p1": {"measured": degree, "p1": P1_DEGREE_REF},
