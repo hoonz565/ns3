@@ -111,20 +111,30 @@ Nếu dataset huấn luyện tính RSSI bằng trung bình cửa sổ mà node t
 
 ## P2 — Harness thu dữ liệu (Tier 2)
 
-**Ý tưởng — phase quan trọng nhất về phương pháp.** Mỗi link có hướng đều có mẫu, **số mẫu đều nhau**, không phụ thuộc đường đi nào.
+**Ý tưởng — phase quan trọng nhất về phương pháp.** Mỗi link có hướng đều có mẫu, không phụ thuộc đường đi nào, và phân bố MAC retry phải giống môi trường mà bộ điều khiển sẽ gặp ở Tier 3.
 
-**Không chạy giao thức định tuyến ở phase này.** Nếu OLSR chọn đường, chỉ link trên đường được chọn mới mang unicast, mới có retry và nhãn. 30 node có ~180 link có hướng nhưng chỉ ~25 mang traffic — mất 85% dữ liệu, mất theo cách không kiểm soát được.
+**Tier 2 chạy đồng thời ba thứ** (sửa 2026-07-26; bản cũ ghi "không chạy giao thức định tuyến" — không còn đúng):
 
-**Hai loại phát:**
+1. **OLSR chuẩn, HELLO cố định 2 s — chỉ đóng vai máy tạo tải.** Không sửa nó, không đo nó, không báo cáo về nó. Nó định tuyến bằng hop count nên mù về LinkScore → không có endogeneity (lựa chọn đường không phụ thuộc đại lượng đang được fit).
+2. **Luồng CBR đa chặng qua UDP/OLSR** — tạo tranh chấp và chuyển tiếp thật, để phân bố MAC retry ở Tier 2 giống Tier 3. Nếu chỉ có probe thì trọng số fit trên một phân bố rồi bị áp lên phân bố khác (train/deploy skew, quy tắc bao trùm mục 3).
+3. **Probe unicast L2 tới mọi hàng xóm còn nghe được beacon** — lấp phần link mà routing không dùng. Không có nó, retry và nhãn bị kiểm duyệt về link on-path, trong khi RSSI (đi nhờ broadcast) thì không → kiểm duyệt **bất đối xứng**, không thấy được bằng kiểm tra nhanh.
 
-| Loại | Kiểu | Cho ta | Vì sao cần |
+**Bốn loại phát:**
+
+| Loại | Kiểu | Cho ta | Vào dataset? |
 |---|---|---|---|
-| Beacon | Broadcast định kỳ | RSSI, phát hiện hàng xóm | Tới được cả link quá yếu để unicast thành công |
-| Probe | Unicast tới từng hàng xóm | MAC retry, nhãn PDR | Chỉ unicast mới kích hoạt ARQ |
+| OLSR HELLO/TC | Broadcast (UDP) | Tải nền + định tuyến cho CBR | Không |
+| CBR đa chặng | Unicast UDP | Tranh chấp thật; attempt trên link on-path | Nhãn (cột `_cbr`) |
+| Beacon L2 | Broadcast định kỳ | RSSI mọi link, phát hiện hàng xóm, degree | Feature RSSI |
+| Probe L2 | Unicast 0x88b5 tới từng hàng xóm | MAC retry, nhãn PDR cả link off-path | Retry + nhãn (cột `_probe`) |
 
-Broadcast không có ACK → không retry, không nhãn. Chỉ probe thì không phát hiện được hàng xóm ban đầu (vòng lặp chết). Cần cả hai.
+Broadcast không có ACK → không retry, không nhãn. Chỉ probe thì không phát hiện được hàng xóm ban đầu (vòng lặp chết). Chỉ CBR thì nhãn bị kiểm duyệt về on-path. Cần cả bốn.
+
+**Nhãn ghi tách cột: `trials_probe/fails_probe` và `trials_cbr/fails_cbr`.** Link on-path có n ≈ hàng trăm attempt CBR mỗi cửa sổ, link off-path chỉ có ~8 probe; binomial GLM trọng số theo n nên bản gộp bị link on-path chi phối — và link mang CBR có thêm tự tranh chấp (self-contention) không nằm trong feature, tức các quan sát có thể không khả hoán khi đã cho feature. Gộp hay không là quyết định của **P5** (fit ba bản: probe-only, gộp, gộp + chỉ báo on-path, so β); P2 chỉ thu đủ dữ liệu để P5 quyết được.
 
 **Probe là thiết bị đo, không phải một phần hệ thống triển khai.** Như hầm gió: dùng để đặc trưng hoá rồi tháo ra. Overhead của nó không tính vào kết quả paper vì nó không tồn tại ở P10.
+
+**Rủi ro phải đo ngay ở smoke test: tải do chính thiết bị đo chi phối.** Ước lượng thô cho thấy probe chiếm airtime gấp ~3 lần CBR — nếu đúng, môi trường tranh chấp mà retry được đo trong đó do traffic đo lường tạo ra, còn Tier 3 không có probe/beacon (quy tắc 13: không fit ở mức tải khác mức bộ điều khiển sẽ thấy). Smoke test **phải in bảng airtime tách theo nguồn** (beacon / probe / CBR / OLSR / ack) — con số đó quyết định mức CBR, hệ số tái sử dụng không gian không đoán được. Ba hướng nếu xấu: nâng CBR cho traffic ứng dụng chi phối; probe thích ứng (chỉ probe neighbor chưa đủ attempt từ traffic thật); hoặc chấp nhận và định lượng β_mac theo mức tải (quy tắc 14).
 
 ### Định nghĩa feature — chốt một lần, dùng ở cả P2 và P8
 
@@ -326,6 +336,8 @@ TTT = (LinkScore − L_thresh) / max(0, −dLinkScore/dt)
 
 **Cổng — đừng bỏ qua.** Đo sai số dự báo tại từng bước horizon: dự báo LinkScore ở t+1…t+N, so với thực đo, vẽ RMSE theo k. **Điểm RMSE vượt ngưỡng chấp nhận được chính là N tối đa có nghĩa.** Đặt N lớn hơn thế là tự lừa mình.
 
+**Việc thêm (chốt ở P2, 2026-07-26): đo suy giảm chất lượng slope theo tốc độ lấy mẫu.** Tier 2 ước lượng slope từ beacon 10 Hz (~40 mẫu/cửa sổ Δ = 4 s), nhưng Tier 3 lấy RSSI từ HELLO nên tốc độ lấy mẫu là 1/H và SE(slope) ∝ √H — xem CLAUDE.md mục "Ba tầng mô phỏng" và "cấu trúc dual control". Lấy dữ liệu beacon 10 Hz đã có, lấy mẫu thưa xuống lưới 0.5/1/2/4 s, tính lại slope, vẽ SE và β_slope theo tốc độ lấy mẫu — không cần chạy lại mô phỏng nào. Đường cong đó là đầu vào trực tiếp cho hàm mục tiêu MPC (chi phí của mù tỉ lệ với độ bất định của TTT, mà độ bất định đó tỉ lệ √H).
+
 Đây cũng là hình kết quả tốt: định lượng chính xác "dự đoán được bao xa" thay vì phát biểu mơ hồ.
 
 **Ghi chú.** Ở 200 m slope là 1.25 dB/s — gần gấp đôi so với ở 400 m. Chất lượng đo biến thiên theo khoảng cách. Vào Limitations.
@@ -393,11 +405,11 @@ Hỏi *"lần HELLO kế tiếp nên phát lúc nào"* thay vì *"chu kỳ nên 
 
 Lai: MPC chu kỳ đặt nhịp nền **+ trigger sự kiện** phát urgent HELLO khi một link vượt ngưỡng cấp bách giữa hai chu kỳ. Bù được điểm yếu broadcast — không cần tăng nhịp nền cho cả node.
 
-**Vì sao quan trọng về lý thuyết.** H **không** ảnh hưởng tới LinkScore — HELLO dày hơn không làm RSSI mạnh lên. Nên nếu không có `ΔH_max`, bài toán tách rời theo k và có nghiệm dạng đóng: horizon không làm gì. Reviewer biết control theory sẽ thấy ngay.
+**Vì sao quan trọng về lý thuyết — SỬA 2026-07-26.** Bản cũ của mục này lập luận: "H không ảnh hưởng tới LinkScore, nên không có `ΔH_max` thì bài toán tách rời theo k, đây chỉ là MPC với preview nhiễu ngoại sinh." Lập luận đó **sai một nửa**: H không đổi chất lượng vật lý của link, nhưng H **điều khiển tốc độ lấy mẫu của bộ ước lượng trạng thái** — ở Tier 3, RSSI đến từ HELLO nên số mẫu trong cửa sổ Δ là Δ/H và SE(slope) ∝ √H. H nhỏ → slope chính xác hơn → TTT tin cậy hơn → quyết định tốt hơn.
 
-Cứu bằng cả hai: ràng buộc tốc độ thay đổi, **và** khung self-triggered nơi thời điểm phát kế tiếp chính là biến quyết định.
+Đó chính xác là **dual control** (Feldbaum 1960): tín hiệu điều khiển vừa điều tiết, vừa thăm dò. Bài toán không tách rời theo k kể cả khi bỏ ràng buộc tốc độ thay đổi, vì hành động hôm nay quyết định bạn biết bao nhiêu ngày mai — horizon có ý nghĩa thật, không phải mượn từ `ΔH_max`. Và hàm mục tiêu có thêm một số hạng có nguồn gốc vật lý thay vì đặt tay: chi phí của mù không chỉ ∝ H/TTT mà còn ∝ độ bất định của chính TTT, tỉ lệ √H (đường cong định lượng đo ở P7).
 
-Gọi đúng tên: **MPC với preview nhiễu ngoại sinh**. Trung thực về điều này biến điểm yếu tiềm tàng thành bằng chứng bạn hiểu công cụ mình dùng.
+Khung self-triggered (Heemels/Johansson/Tabuada CDC 2012) vẫn là biến thể khuyến nghị — nó tương thích với dual control, không thay thế. Chi tiết và ràng buộc lấy mẫu Tier 2/Tier 3: CLAUDE.md mục "cấu trúc dual control".
 
 ---
 

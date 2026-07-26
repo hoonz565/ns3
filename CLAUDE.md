@@ -31,6 +31,71 @@ ground truth but battery barely varies over a 300 s run — radio energy is a
 rounding error against UAV propulsion energy — so β_battery would be
 meaningless. One metric proven properly beats two half-proven.
 
+## Three simulation tiers
+
+Three kinds of ns-3 run, and results never cross tiers:
+
+| Tier | Phases | What runs | Purpose |
+|---|---|---|---|
+| **1 — verification** | P0 | 2 nodes, one flying away, L2 probe only | Prove the instruments against hand-computed theory |
+| **2 — data collection** | P2–P4 | 30 nodes; stock OLSR (HELLO 2 s) as **load generator only** + multi-hop CBR + L2 beacon + L2 probe | Produce the per-link dataset the weights are fitted on |
+| **3 — evaluation** | P8–P10 | 30 nodes; OLSR + MPC HELLO controller + application traffic. **No beacon, no probe** | The numbers that go in the paper |
+
+Tier 2 design, and why each piece is there:
+
+- **OLSR runs but is not measured.** It exists to route the CBR flows and to
+  contribute realistic control-plane load. It routes by hop count, so it is
+  blind to LinkScore — no endogeneity: which links carry traffic does not
+  depend on the quantity being fitted. Do not modify it, do not report on it.
+- **CBR multi-hop flows** make the contention environment resemble Tier 3.
+  Probe-only traffic would fit weights on one retry distribution and deploy
+  them into another (rule 9's train/deploy skew, at the traffic level).
+- **The L2 probe** fills in the links routing never uses (rule 12). Labels are
+  recorded in **separate columns** — `trials_probe/fails_probe` vs
+  `trials_cbr/fails_cbr` — because on-path links get ~10× the trials and
+  carry self-contention that off-path links lack; whether pooling is safe is
+  decided at P5 by comparing fits, not assumed at P2.
+- **The L2 beacon** (10 Hz) is the sole source of the RSSI feature: uniform
+  sampling density on every link, uncorrelated with routing and probing
+  decisions, and it reaches links too weak for unicast.
+
+**Instrument-dominated load is the standing threat.** Beacons and probes do
+not exist in Tier 3, so their airtime share in Tier 2 must be measured (every
+run prints airtime by source) and kept from dominating the contention that
+retry is measured under (rule 13).
+
+## The sampling constraint, and why this is dual control
+
+Tier 2 estimates slope from 10 Hz beacons: ~40 RSSI samples per Δ = 4 s
+window. Tier 3 has no beacons — RSSI arrives on OLSR HELLOs, so the sampling
+rate is 1/H, **and H is the very quantity the MPC controls.** The OLS
+standard error of the slope scales as
+
+    SE(slope) ∝ σ / (s_t · √(Δ/H)) ∝ √H
+
+| RSSI source | samples in Δ = 4 s | SE(slope) |
+|---|---|---|
+| Beacon 10 Hz (Tier 2) | 40 | 0.27 dB/s |
+| HELLO H = 0.5 s | 8 | 0.61 dB/s |
+| HELLO H = 2 s | 2 | not estimable |
+| HELLO H = 4 s | 1 | does not exist |
+
+Two consequences, both load-bearing:
+
+1. **This is the project's worst train/deploy skew (rule 9)** — weights
+   fitted for a 40-sample slope estimator, deployed with 1–8 samples. P7 must
+   quantify the degradation by **downsampling the existing Tier 2 beacon data**
+   to 0.5/1/2/4 s grids and re-estimating slope — no new simulation needed.
+   That curve feeds the MPC objective directly.
+2. **It upgrades the theory from "MPC with preview" to dual control**
+   (Feldbaum 1960). H does not change the physical link quality, but it
+   controls the sampling rate of the state estimator: small H → more samples →
+   better slope → more reliable TTT → better decisions. The control signal
+   both regulates and probes, so the problem does not decouple across the
+   horizon even without a slew constraint, and the cost of being blind has a
+   physically derived term ∝ √H (the uncertainty of TTT itself). Cite
+   Feldbaum 1960; Heemels/Johansson/Tabuada CDC 2012 (self-triggered control).
+
 ## Repo documents
 
 - `PLAN.md` — the 11-phase research plan. Read the section for the current
