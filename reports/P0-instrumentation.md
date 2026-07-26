@@ -1,6 +1,12 @@
 # P0 — Môi trường và kiểm chứng thiết bị đo
 
-Ngày 2026-07-26 | Git SHA `1e2bb8232` (các run ghi `f9b3554c9`) | Config SHA: chưa có, `config/nominal.yaml` là việc của P1
+Ngày 2026-07-26 | Git SHA `dfe0788a4` | Config SHA: chưa có, `config/nominal.yaml` là việc của P1
+
+> **Lưu ý provenance.** Các `run_manifest.json` của P0 ghi SHA `f9b3554c9` /
+> `415beabf5`, là SHA **trước** khi sửa git author. Sau khi rewrite, những SHA
+> đó không còn tồn tại. Dữ liệu P0 là smoke nên chấp nhận được, nhưng quy tắc
+> rút ra: **rewrite lịch sử trước khi sinh manifest, không bao giờ sau.** Từ P1
+> trở đi không rewrite nữa.
 
 ## Đã làm
 
@@ -136,7 +142,9 @@ Ngoài ra: scenario C++ ở `scratch/linkscore/`, mỗi `.cc` một target qua `
 4. **`git_dirty` là cờ toàn repo, không riêng scenario.** Các run mới ghi `dirty: true` chỉ vì `p0_check.py` chưa commit lúc chạy; scenario thì đã sạch. Thứ ghim đúng scenario đã biên dịch là `binary_sha256`, độc lập với cờ dirty. Không phải lỗi, nhưng khi đọc manifest thì phải biết.
 5. **Patch `phy-entity.cc` chưa được kiểm thật.** 11 run đều 2 node, 40–80 s, không dày đặc — không đụng tới race mà patch xử lý. Chỉ kiểm được ở P2.
 6. **`./ns3 build <target-sai>` trả exit code 0** dù in "Target to build does not exist". Script tự động phải grep output, không được tin exit code.
-7. **Định danh git là `Your Name`.** Mọi commit của P0 mang tên đó. Nên sửa `git config user.name` rồi amend nếu muốn lịch sử sạch.
+7. **Định danh git — đã sửa, còn một chỗ lệch.** 7 commit của P0 đã đổi từ `Your Name` sang `Nguyen Minh Hung` (giữ nguyên author date). Nhưng hai commit trước đó của tác giả (`b62e163f1`, `415beabf5`) mang tên **`Minh Hưng`**, nên git đếm thành hai author khác nhau. Muốn thống nhất thì chọn một trong hai và chạy `git rebase --exec 'git commit --amend --no-edit --author="<tên> <email>"' b62e163f1^`.
+
+   **Cảnh báo đã trả giá:** `git rebase --root` ở repo này đi tới commit đầu tiên của ns-3 năm 2006, không phải commit đầu của dự án — nó bắt đầu gán author của mình lên hàng nghìn commit upstream trước khi tôi abort. Luôn giới hạn phạm vi bằng SHA (`git rebase ... 415beabf5`), không dùng `--root`.
 
 ## Đầu vào cho phase sau
 
