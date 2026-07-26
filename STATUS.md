@@ -7,17 +7,21 @@ Cập nhật lần cuối: 2026-07-27
 
 ## Phase hiện tại
 
-**P2 ĐANG DỞ — hai lần smoke seed 1, cùng trượt 2/6 cổng (degree, MAC loss),
-cả hai cổng đều cải thiện mạnh sau `FrameRetryLimit = 2` nhưng tổng airtime
-run 2 là 105.6% toàn mạng (~47%/miền) — vẫn trên tiêu chí 50–70%, nên DỪNG
-theo đúng điều kiện đã giao, chưa kết luận được cổng nào "trượt thật".
-ĐANG CHỜ duyệt đề xuất: `probeInterval` 0.5 → 1.0 s/neighbor (dự phóng tổng
-~55–60% mạng, giữa vùng mục tiêu). Chi tiết + bảng so run 1/run 2 ở mục cuối
-`reports/P2-harness.md`. Không batch.**
+**P2 ĐANG DỞ — ba lần smoke seed 1, run 3 (probe 1 Hz + `FrameRetryLimit=2`)
+đã VÀO vùng tải mục tiêu: tổng airtime 60.9% toàn mạng (~27%/miền), 5/6 cổng
+đạt (degree 4.97 ✓). Còn đúng một quyết định: cổng MAC loss 78.3% > 75% —
+phân tích cho thấy ngưỡng sai chứ không phải tải sai (78.3% phân rã trọn vẹn
+bằng vị trí đặt probe: 53.5% trials ở ≥600 m nơi q = 0.91–0.99 do vật lý
+waterfall; bin gần sạch dần khi kênh thoáng — chữ ký ngược với sập). ĐANG
+CHỜ duyệt một trong hai phương án ngưỡng ở mục run 3 của
+`reports/P2-harness.md`: (a) gateLossMax 75 → 85; (b — khuyến nghị) thêm
+cổng q-vùng-gần (<400 m) ≤ 0.30 + gateLossMax 85 làm lưới sau. Chỉ đổi
+check_gates + conf, không cần mô phỏng lại. Qua cổng → xin duyệt batch 25
+seed. Không batch trước đó.**
 
-Run 1 (L=7): degree 1.79, loss 92.9%, airtime probe 228.8%. Run 2 (L=2):
-degree 3.82, loss 81.4%, probe 96.1%, khuếch đại ARQ 5.37 → 1.76 (dự đoán
-1+q = 1.81 — khớp), route OLSR 19% → 48%, queue trơ hoàn toàn (p99 4.7 ms).
+Tiến trình ba run (cùng seed 1): tổng airtime 238.9% → 105.6% → 60.9%;
+degree 1.79 → 3.82 → 4.97; loss 92.9% → 81.4% → 78.3%; route OLSR 19% →
+48% → 70%; khuếch đại ARQ 5.37 → 1.76 → 1.71; fails_slipped 26 → 22 → 13.
 
 Thiết kế Tier 2 đã đổi và đã ghi vào tài liệu TRƯỚC khi viết code: OLSR chuẩn
 (chỉ tạo tải, mù LinkScore) + CBR đa chặng + beacon L2 10 Hz (nguồn duy nhất
@@ -45,20 +49,27 @@ hay không quyết ở P5. Xem CLAUDE.md "Three simulation tiers".
 - **P2 — smoke seed 1, run 1** (SHA `ba27233c5`, L=7): 14 273 dòng — bão hoà
   do probe, chẩn đoán trong `reports/P2-harness.md`.
 - **P2 — `FrameRetryLimit = 2`** (tài liệu + conf + code, SHA `64eacc733` /
-  `af306952b`) và **smoke run 2** cùng seed: 19 752 dòng, bảng so hai run ở
-  mục cuối báo cáo. Dữ liệu hai run giữ song song:
-  `data/smoke/p2-harness/seed-1{,-retry2}/`.
+  `af306952b`) và **smoke run 2** cùng seed: 19 752 dòng.
+- **P2 — probe 1 Hz + smoke run 3** (SHA `076b439bf` / `f2d7c5d02`): 21 427
+  dòng, tải vào vùng, 5/6 cổng. check_gates mở rộng: phân bố trials,
+  fails_slipped, q theo bin tách probe/CBR. Ba run giữ song song:
+  `data/smoke/p2-harness/seed-1{,-retry2,-probe1hz}/`.
+- **Phát hiện cho Motivation: q_cbr ≥ q_probe** — mục riêng trong báo cáo.
+  Run 3: 0.841 so 0.776, hiệu nới ra khi route tăng 48%→70%; min-hop dồn
+  72.4% trials on-path vào 400–800 m (mép waterfall); cùng bin 200–400 m thì
+  on-path fail gấp 2.3× off-path (tự tranh chấp dọc tuyến). PLAN.md P6 đã
+  thêm min-hop làm baseline regret thứ ba (`458a59920`).
 
 ## Đang vướng
 
-**Một việc duy nhất: duyệt hạ nhịp probe 2 Hz → 1 Hz/neighbor.** Trần retry
-đã cắt khuếch đại đúng dự đoán (5.37 → 1.76), nhưng kênh thoáng làm beacon
-decode tốt hơn → TTL admit thêm neighbor (9.0 → 11.5/node) → probe gửi tăng
-28%, nuốt một phần lợi ích (giảm ×2.38 thay vì ×3.05). Số học còn lại: cần
-giảm ~36% số lần gửi để tổng vào ≤ 70% mạng, và phải chừa chỗ cho admission
-nở tiếp về ~14. Ở 1 Hz: attempt probe/dòng ≈ 7 ≥ sàn 5, median trials ~7–8.
-Dự phòng nếu chưa đủ: TTL 2 → 1 s (đổi bias lấy variance — để sau cùng).
-Sau khi duyệt: đổi đúng một tham số, chạy lại 1 seed, so ba điểm dữ liệu.
+**Một việc duy nhất: duyệt ngưỡng cổng loss** (hai phương án ở mục run 3 của
+báo cáo — khuyến nghị phương án q-vùng-gần: run 3 = 0.216 ✓, run 2 = 0.33 ✗,
+bám đúng bão hoà mà không phạt việc cố ý đo đuôi).
+
+Việc phải chốt ở P4/P5 (ghi để không quên, không phải việc bây giờ): mâu
+thuẫn nhỏ giữa conf (`minTrials = 2`, dòng ít trial là quan sát nhị thức hợp
+lệ trọng số thấp) và CLAUDE.md (lọc `trials ≥ 5`) — ở 1 Hz có 16.2% dòng
+trials < 5 (p10/p25/p50/p90 = 4/5/7/8), lọc cứng sẽ mất chỗ đó.
 
 ## Quyết định đã chốt
 
@@ -100,9 +111,15 @@ Sau khi duyệt: đổi đúng một tham số, chạy lại 1 seed, so ba đi�
 - **Phản hồi dương admission ↔ độ thoáng kênh**: kênh thoáng hơn → beacon
   decode nhiều hơn → TTL admit thêm neighbor (9.0 → 11.5, trần loose ~14) →
   probe gửi tăng 28%. Mọi dự đoán tải probe phải tính hệ số này.
-- **q_cbr ≈ q_probe (0.82)** — min-hop chọn link dài/biên nên CBR fail
-  per-attempt cao ngang probe trên link biên. Đúng bệnh lý đề tài nhắm vào;
-  cũng nghĩa là CBR không tự động "sạch" hơn probe.
+- **q_cbr ≥ q_probe, và hiệu nới ra khi OLSR có nhiều route hơn** (run 2 →
+  run 3: +0.009 → +0.065 khi route 48% → 70%) — càng được định tuyến nhiều,
+  link trên đường càng tệ. Hai cơ chế tách được bằng bin: placement (72.4%
+  trials on-path ở 400–800 m) + excess cùng-bin (×2.3 ở 200–400 m, tự tranh
+  chấp dọc tuyến). CBR không tự động "sạch" hơn probe.
+- **Aggregate MAC loss là trung bình theo trọng số vị-trí-đặt-probe**, không
+  phải chỉ báo sức khoẻ kênh: 78.3% ở kênh khoẻ (run 3) vì 53.5% trials ở
+  ≥600 m nơi q do vật lý là 0.91–0.99. Chỉ báo sập thật là q vùng gần
+  (<400 m): 0.216 (khoẻ) so với 0.33 (bão hoà nhẹ, run 2).
 - **MaxDelay 100 ms trơ hoàn toàn khi hết bão hoà**: run 2 expired 0, tràn 0,
   p50 1.8 ms / p99 4.7 ms (run 1 bão hoà: p99 85 ms, expired 0.38%).
 - **ns-3.45 tự cài root qdisc (FqCoDel) lên WifiNetDevice khi gán địa chỉ

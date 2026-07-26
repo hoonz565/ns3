@@ -1,11 +1,14 @@
 # P2 — Harness thu dữ liệu Tier 2
 
-Ngày 2026-07-27 | Git SHA `ba27233c5` (run 1) / `af306952b` (run 2) | Config: `sim-config/fanet-tier2.conf`
+Ngày 2026-07-27 | Git SHA `ba27233c5` (run 1) / `af306952b` (run 2) / `f2d7c5d02` (run 3) | Config: `sim-config/fanet-tier2.conf`
 
-> **Cập nhật cùng ngày:** lần chạy 2 (`FrameRetryLimit = 2`, giữ probe 2 Hz)
-> ở mục cuối. Tổng airtime 105.6% toàn mạng > mục tiêu 70% → dừng theo đúng
-> tiêu chí, đề xuất bước tiếp ở cuối. Hai lần chạy là hai điểm dữ liệu; mục
-> dưới đây giữ nguyên làm hồ sơ lần 1.
+> **Trạng thái mới nhất — sau run 3** (`FrameRetryLimit = 2`, probe 1 Hz):
+> tổng airtime **60.9%** toàn mạng — vào vùng mục tiêu 50–70; **5/6 cổng
+> đạt** (degree 4.97 ✓). Còn cổng MAC loss 78.3% > 75% — phân tích ở mục
+> run 3 cho thấy đây là tín hiệu **ngưỡng sai, không phải tải sai**; hai
+> phương án ngưỡng chờ duyệt ở đó. Kèm mục riêng: q_cbr ≥ q_probe — bằng
+> chứng thực nghiệm min-hop chọn link biên. Ba lần chạy là ba điểm dữ liệu,
+> giữ nguyên tuần tự bên dưới.
 
 **Kết luận: harness chạy đúng và đo được chính nó — smoke test seed 1 TRƯỢT
 2/6 cổng (degree 1.79 < 4.0; MAC loss 92.9% > 75%). Nguyên nhân định lượng
@@ -264,3 +267,127 @@ chừa chỗ cho admission nở tiếp khi kênh thoáng (11.5 → ~14 neighbor)
 
 Sau khi anh/chị duyệt: đổi đúng một tham số, chạy lại 1 seed, so ba điểm dữ
 liệu rồi mới bàn cổng degree/loss.
+
+---
+
+# Lần chạy 3 — `probeInterval` 1.0 s/neighbor (2026-07-27)
+
+Git SHA `f2d7c5d02` | manifest `data/smoke/p2-harness/seed-1-probe1hz/run_manifest.json`, dirty=False | cùng seed 1
+
+Thay đổi so với run 2 đúng một tham số: `probeInterval` 0.5 → 1.0 s.
+
+## Cổng nghiệm thu (seed 1, 21 427 dòng) — 5/6 đạt
+
+| Chỉ số | Ngưỡng | Run 1 | Run 2 | **Run 3** | Đạt |
+|---|---|---|---|---|---|
+| Degree trung bình (định nghĩa P1) | ≥ 4.0 | 1.79 | 3.82 | **4.97** | **✓** |
+| % dòng `retry_rate` > 0 | ≥ 10% | 96.1% | 94.9% | 87.5% | ✓ |
+| % dòng 0 < pdr < 1 | ≥ 10% | 75.2% | 68.0% | 54.6% | ✓ |
+| MAC loss per-attempt | ≤ 75% | 92.9% | 81.4% | **78.3%** | **✗** |
+| % dòng pdr ghim 0/1 | ≤ 90% | 24.8% | 32.0% | 45.4% | ✓ |
+| Dòng có fails > 0 | > 0 | 13 898 | 18 892 | 18 916 | ✓ |
+
+## Tải: VÀO vùng mục tiêu, dự phóng trúng
+
+| Đại lượng | Run 1 | Run 2 | **Run 3** |
+|---|---|---|---|
+| **Tổng airtime mọi nguồn** | 238.9% | 105.6% | **60.9% mạng (~27%/miền)** — mục tiêu 50–70% ✓ |
+| — probe / beacon / cbr / olsr / ctrl | 228.8 / 3.5 / 4.4 / 0.4 / 1.8 % | 96.1 / 3.5 / 4.0 / 0.5 / 1.6 % | **49.9** / 3.5 / 6.0 / 0.5 / 1.0 % |
+| Probe gửi | 161 475 | 207 075 | **110 403** (= 207k × 0.5 × 1.07 — admission nở tiếp 11.5 → 12.3 neighbor, đã dự phòng) |
+| Khuếch đại ARQ | 5.37 | 1.76 | **1.71** (1 + q̄ = 1.78 tại q_probe 0.776 — khớp) |
+| Degree (P1: 6.14) | 1.79 | 3.82 | **4.97**, cô lập 0.87% (P1: 0.6%) |
+| Route OLSR tồn tại | 19.0% | 48.0% | **70.1%** |
+| Dòng probe-only | 98.8% | 97.1% | 96.0% |
+| Queue p50 / p99 ms | 13.2 / 85.1 | 1.8 / 4.7 | **0.9 / 4.1**, 0 drop |
+| fails_slipped | 26 (0.18%) | 22 (0.11%) | **13 (0.06%)** — giảm đơn điệu theo L rồi theo tải, đúng chiều bắt buộc; logic quy lớp không có vấn đề |
+
+Dự phóng ~60–68% trong commit `076b439bf` (gộp độ lợi admission 0.28): đo được
+60.9%. Admission thực tế +7% thay vì +28% vì đã gần trần loose (~12.3/14).
+
+**Chi phí đã lường trước của 1 Hz — biên mỏng thật:** `trials_future`
+p10/p25/p50/p90 = **4 / 5 / 7 / 8**, tức **16.2% dòng có trials < 5** (run 2:
+1.2%). Với GLM nhị thức thì dòng ít trial là quan sát hợp lệ trọng số thấp
+(conf, chú thích `minTrials`), nhưng nếu P5 lọc cứng `trials ≥ 5` theo
+CLAUDE.md thì mất 16.2% dòng — mâu thuẫn nhỏ giữa hai tài liệu, cần chốt ở
+P4/P5, ghi ở đây để không quên. Ghim 0/1 tăng 32.0% → 45.4% (artifact n nhỏ
+đã ghi trong conf), vẫn xa cổng 90%.
+
+## Cổng MAC loss 78.3%: tín hiệu ngưỡng sai, không phải tải sai
+
+Đối chiếu đúng lập luận đã dùng cho degree: **mọi chỉ báo sức khoẻ kênh khác
+đều nói "không sập"** — degree 4.97 (qua cổng), cô lập 0.87% ≈ 0.6% của P1,
+queue rỗng (p99 4.1 ms, 0 drop), route 70%, chiếm dụng 60.9% trong vùng. Con
+số 78.3% được **phân rã trọn vẹn bằng vị trí đặt trial trên trục khoảng
+cách** (bảng bin bên dưới): 53.5% trials probe nằm ở ≥ 600 m, nơi q =
+0.91–0.99 **do vật lý** (R(0.5) = 625 m — quá mép waterfall thì per-attempt
+phải tiến về 1). Đó là thiết kế đang làm đúng việc: quy tắc 12 bắt probe theo
+beacon để giữ đuôi rất-xấu neo đáy sigmoid; sàn −101 dBm làm beacon nghe được
+xa hơn hẳn tầm unicast hữu dụng, nên tập admission chứa cái đuôi ấy.
+
+Chữ ký phân biệt với sập kênh: sập nâng q **mọi bin kể cả gần** (run 1→3, bin
+0–200 m: q_probe 0.098 → 0.055; bin 200–400 m: 0.370 → 0.244 — bin gần sạch
+dần khi kênh thoáng, bin xa đứng im ở trần vật lý). Ngưỡng 75% thừa kế từ
+scenario ngoài cây đo ở 20 dBm/−82 (R(0.5) = 294 m, đuôi bị sàn −82 cắt cụt)
+— chưa bao giờ được hiệu chuẩn cho cấu hình 19/−101 vốn cố ý đo đuôi dài hơn.
+
+**Đề xuất (chưa sửa, chờ duyệt):**
+
+1. *Tối thiểu:* `gateLossMax` 75 → **85** — bắt sập thật (run 1 bão hoà:
+   92.9%) và tha cho thiết kế không-kiểm-duyệt (78.3% ở kênh khoẻ).
+2. *Tách bạch hơn (khuyến nghị):* thêm cổng **q vùng gần** — q per-attempt
+   gộp trên link < 400 m ≤ **0.30**. Sập nâng bin gần, đuôi cố ý đo không
+   đụng bin gần: run 3 = 0.216 ✓, run 2 = 0.33 ✗, run 1 tệ hơn nữa — chỉ số
+   bám đúng bão hoà mà không phạt việc đo đuôi. Giữ `gateLossMax = 85` làm
+   lưới sau. Chỉ đổi check_gates.py + conf, không đụng scenario.
+
+---
+
+# q_cbr ≥ q_probe — bằng chứng thực nghiệm cho tiền đề đề tài (mục riêng)
+
+**Phát biểu:** trên cùng một mạng, cùng cỡ frame, cùng ARQ, các link mà OLSR
+min-hop *chọn để chở dữ liệu* giao gói per-attempt **kém hơn** tập link được
+probe rải đều: run 3 (kênh khoẻ) q_cbr = **0.841** so với q_probe = **0.776**
+— và khoảng cách này **nới ra khi OLSR có nhiều route hơn** (run 2 → run 3:
+route 48% → 70%, hiệu q_cbr − q_probe từ +0.009 lên **+0.065**). Càng được
+định tuyến nhiều, chất lượng link trên đường càng tệ đi — vì metric là hop
+count: ít hop nhất = link dài nhất = link vùng biên.
+
+Phân rã theo bin tách được **hai cơ chế riêng biệt**, cả hai đều vào
+Motivation:
+
+| bin | q_probe | q_cbr | % trials probe | % trials CBR |
+|---|---|---|---|---|
+| 0–200 m | 0.055 | 0.117 | 2.3% | 3.2% |
+| 200–400 m | 0.244 | **0.570** | 13.0% | 18.3% |
+| 400–600 m | 0.630 | **0.870** | 31.2% | **40.5%** |
+| 600–800 m | 0.913 | 0.980 | 39.9% | 31.9% |
+| ≥800 m | 0.991 | 0.999 | 13.6% | 6.1% |
+
+1. **Cơ chế đặt-link (placement):** min-hop dồn **72.4%** trials on-path vào
+   400–800 m — tại và quá mép waterfall (R(0.5) = 625 m). Không phải quan sát
+   hệ quả nữa mà thấy thẳng cơ chế: chọn ít hop là chọn link dài.
+2. **Cơ chế cùng-khoảng-cách (excess):** ở *cùng bin*, q_cbr vẫn cao hơn
+   q_probe ở mọi bin — nổi nhất 200–400 m: 0.570 so với 0.244, gấp **2.3×**.
+   Link đang chở dữ liệu chịu tự tranh chấp và hidden-terminal dọc tuyến —
+   đúng cái confound "không nằm trong feature" đã là lý do tách cột
+   `*_probe`/`*_cbr` (quyết định C4): tính khả hoán giữa on-path và off-path
+   là câu hỏi thật, P5 phải kiểm như kế hoạch.
+
+Hệ quả đã ghi vào PLAN.md P6 (commit `458a59920`): so regret ba chiều
+**oracle / LinkScore / min-hop** — regret của min-hop là con số Motivation,
+miễn phí từ dữ liệu đã thu.
+
+*Caveat trung thực:* q_cbr đo trên tập link OLSR chọn, vốn phải qua điều kiện
+HELLO hai chiều — có kiểm duyệt riêng của nó; và CBR chỉ chiếm 10.7% tổng
+attempt nên SE của q_cbr theo bin rộng hơn q_probe. Kết luận định tính (dồn
+vào bin xa; excess cùng-bin) vững qua cả ba run; con số chính xác để trích
+vào paper nên lấy từ batch nhiều seed, không phải smoke 1 seed.
+
+## Trạng thái sau run 3
+
+Tải ĐÃ vào vùng (60.9%), 5/6 cổng đạt, harness sạch về mọi kiểm chứng nội
+tại (0 ARP, 0 fail không quy lớp, PSDU 576=576, slipped giảm đơn điệu). Còn
+đúng một quyết định: **ngưỡng cổng loss** (hai phương án ở trên). Nếu duyệt
+phương án ngưỡng: chạy lại check_gates trên chính dữ liệu run 3 (không cần
+mô phỏng lại), qua cổng thì xin duyệt batch 25 seed theo `seedsCalibration/
+Train/Test` của conf.
