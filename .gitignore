@@ -50,3 +50,16 @@ vcpkg/
 
 # Ignore local cache used by e.g. clangd
 .cache/
+
+# ---------------------------------------------------------------------------
+# LinkScore / MPC-HELLO research project (see WORKFLOW.md section 2)
+# Everything above this line is stock ns-3.45.
+# ---------------------------------------------------------------------------
+# simulation output, GBs — never committed
+data/
+# (build/ and *.pcap also listed above by stock ns-3)
+build/
+__pycache__/
+*.pcap
+# FlowMonitor / NetAnim output
+*.xml
