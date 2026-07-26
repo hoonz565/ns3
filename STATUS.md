@@ -3,87 +3,96 @@
 > File này là nguồn chân lý về **đang ở đâu**. Đọc đầu tiên mỗi session,
 > cập nhật cuối mỗi phase (WORKFLOW.md mục 1).
 
-Cập nhật lần cuối: 2026-07-26
+Cập nhật lần cuối: 2026-07-27
 
 ## Phase hiện tại
 
-**P1 XONG. Config đã đóng băng.** Sẵn sàng cho P2 (harness thu dữ liệu Tier 2)
-khi anh/chị duyệt. Báo cáo: `reports/P1-config.md`.
+**P2 ĐANG DỞ — harness viết xong và chạy đúng, smoke seed 1 TRƯỢT 2/6 cổng
+(degree 1.79 < 4.0; MAC loss 92.9% > 75%). Nguyên nhân đã chẩn đoán định
+lượng: bão hoà kênh do probe (airtime probe 228.8% simTime toàn mạng,
+đo-lường/ứng-dụng = 48.5×). ĐANG CHỜ quyết định mức tải probe — ba đòn bẩy
+kèm số trong `reports/P2-harness.md` mục cuối. Không chạy batch, không chỉnh
+tham số cho tới khi duyệt.**
 
-Config đóng băng: `txPowerDbm = 19`, `minRssiDbm = -101`, `channelNumber = 36`,
-`dataMode = OfdmRate6Mbps` — tất cả trong `sim-config/fanet-tier2.conf`, xác
-nhận bằng run đọc thẳng từ config (không flag): degree **6.14**, provenance in
-ra đúng tên file cho cả bốn key.
+Thiết kế Tier 2 đã đổi và đã ghi vào tài liệu TRƯỚC khi viết code: OLSR chuẩn
+(chỉ tạo tải, mù LinkScore) + CBR đa chặng + beacon L2 10 Hz (nguồn duy nhất
+của RSSI) + probe L2 mỗi-neighbor. Nhãn per-attempt tách cột probe/CBR, gộp
+hay không quyết ở P5. Xem CLAUDE.md "Three simulation tiers".
 
 ## Đã hoàn thành
 
-- **Khung repo + provenance** (P0): cây thư mục theo WORKFLOW mục 2,
-  `scripts/run_manifest.py` (git_dirty + binary-vs-source mtime),
-  `scripts/test_feature_label_boundary.py`.
-- **P0 — thiết bị đo, ba cổng đạt**, đã chạy lại ở cây sạch (11 run,
-  `dirty: false`, SHA `294c481df`), số liệu trùng bản cũ đến 3 chữ số:
-  - |residual| max **0.0066 dB** so với lý thuyết; Spearman **−1.000000**.
-  - retry: 19 973 / 21 072 attempt, 6 bin sạch dưới 70 m.
-  - σ residual 6 seed: m=8 → **1.594** (dự kiến 1.585); m=5 → **2.026**
-    (2.043); m=3 → **2.755** (2.729). Mean residual cũng khớp Jensen.
-- **P1 — công cụ config**: `sim-config.h` (precedence default < config < flag,
-  registry key hai tầng: ngoài registry → fatal, trong-registry-không-dùng →
-  cảnh báo), config phân lớp, `run_manifest.py --config` lặp lại được +
-  `config_sha256`.
-- **P1 — đo hình học**: `topology-probe.cc` 30 node / 300 s / chỉ beacon.
+- **P0 — thiết bị đo, ba cổng đạt** (11 run, cây sạch, SHA `294c481df`):
+  |residual| max 0.0066 dB; σ 6 seed: m=8→1.594, m=5→2.026, m=3→2.755.
+- **P1 — config đóng băng**: `txPowerDbm = 19`, `minRssiDbm = -101` →
+  degree **6.14**, cô lập 0.6%, R(0.5) = 625 m (kiểm chứng hình học độc lập
+  ~6.0). Độ cao quasi-tĩnh: chấp nhận và khai báo (dọc góp 0.7%).
+- **P2 — tài liệu**: PLAN.md P2 viết lại (bốn loại phát); CLAUDE.md thêm
+  "Three simulation tiers" + **"sampling constraint / dual control"** — Tier 3
+  lấy RSSI từ HELLO nên tốc độ lấy mẫu là 1/H, SE(slope) ∝ √H, H vừa điều
+  tiết vừa thăm dò (Feldbaum); P7 phải đo suy giảm slope bằng lấy mẫu thưa
+  dữ liệu beacon 10 Hz (không cần mô phỏng thêm); P8e sửa lập luận cũ.
+- **P2 — code**: `scratch/linkscore/link-dataset-fanet.cc` (kế thừa nguyên ba
+  cách đo P0; xoay bucket cưỡng chế ghi dòng tại t+τ; ARP tĩnh; assert PSDU
+  probe==CBR đo trên sóng: 576=576; guard qdisc), `scripts/check_gates.py`
+  (ngưỡng đọc từ conf, exit 1 khi trượt, bảng airtime tách nguồn),
+  `fanet-tier2.conf` khối harness mới (labelWin 4, beacon 0.1 s, probeBytes
+  540, key CBR/warmup/MaxDelay).
+- **P2 — smoke seed 1** (SHA `ba27233c5`, dirty=False, manifest chuẩn):
+  14 273 dòng, kết quả và chẩn đoán trong `reports/P2-harness.md`.
 
 ## Đang vướng
 
-Không có gì chặn. Hai việc của P1 đã chốt:
-
-1. **`txPowerDbm = 19`, `minRssiDbm = -101`** — degree **6.14**, cô lập 0.6%,
-   R(0.5) = 625 m. Config cũ (20 dBm / sàn −82) cho degree 1.06 và cô lập
-   34.5%, không đạt cổng. `12 dBm/−101` bị loại bằng số học: ngân sách 102 dB
-   đúng bằng config cũ nên cùng degree.
-2. **Độ cao quasi-tĩnh: chấp nhận và khai báo.** z-span mỗi node trung vị
-   **107 m / dải 500 m**, 100% node quét dưới nửa dải. Vận động dọc đóng góp
-   trung vị **0.7%** vào thay đổi khoảng cách làm link đổi trạng thái (3.2%
-   trước khi chiếu lên khoảng cách 3D). Phát biểu đúng: **vị trí 3D phân tầng
-   giữa các node, động lực học do chuyển động ngang** — đã ghi vào CLAUDE.md
-   và PLAN.md.
+**Một việc duy nhất: chọn đòn bẩy hạ tải probe.** Chuỗi nhân quả đo được:
+ước lượng thiết kế sai 7.8× vì (a) admission TTL-lỏng nhận ~9 neighbor/node
+chứ không phải degree chặt 6.14, (b) khuếch đại ARQ ×5.37 (866 573 attempt /
+161 475 probe gửi). Bão hoà đè beacon (degree đo sập còn 1.79) và đè OLSR
+(route tồn tại ~19% thời gian → 98.8% dòng là probe-only). Ba phương án kèm
+số ở cuối `reports/P2-harness.md`; đề xuất: trần retry MaxSsrc 7→1-2 toàn
+mạng + probe 1 Hz. Sau khi chọn: chạy lại đúng 1 seed smoke, qua cổng rồi mới
+bàn batch.
 
 ## Quyết định đã chốt
 
-- **Scenario C++ ở `scratch/linkscore/`**, mỗi `.cc` một target qua `build_exec`
-  với `EXECNAME_PREFIX scratch_linkscore_`.
-- **Ba cách đo của P0, dùng lại y hệt ở P2**: RSSI từ `MonitorSnifferRx`
-  (`signalNoise.signal`); mẫu số mọi tỉ lệ MAC từ `MonitorSnifferTx`, không từ
-  `Send()`; probe unicast L2 qua `NetDevice::Send`.
-- **Nhãn per-attempt, không post-ARQ** (CLAUDE.md quy tắc 3).
-- **Config phân lớp, không lặp khối physics.** Khối lặp lại là khối sẽ trôi.
-- **`--fail-on-dirty` cho mọi run có số vào paper.**
-- **σ dự kiến của fading suy từ hiện thực ns-3**, không từ tài liệu.
+- **Ba tầng mô phỏng** (CLAUDE.md): Tier 1 kiểm chứng / Tier 2 thu dữ liệu
+  (OLSR-tải + CBR + beacon + probe) / Tier 3 đánh giá (không beacon, không
+  probe). Kết quả không bao giờ vượt tầng.
+- **Nhãn tách cột `trials_probe/fails_probe` và `trials_cbr/fails_cbr`** —
+  link on-path có n gấp ~10× và tự tranh chấp không nằm trong feature; gộp
+  hay không là quyết định của P5 (fit ba bản, so β), không phải của P2.
+- **RSSI chỉ từ beacon** (mật độ mẫu đồng đều, không tương quan routing;
+  khớp Tier 3 nơi RSSI đi trên broadcast HELLO).
+- **Fail quy lớp theo attempt gần nhất cùng địa chỉ** (MacTxDataFailed chỉ có
+  địa chỉ; MAC non-QoS serial hoá nên phép quy chính xác; sai biên đếm ở
+  `fails_slipped`).
+- **ARP tĩnh, khai báo trong paper** — ARP reply lọt tử số mà không vào mẫu
+  số lọc size, thổi phồng fails một chiều.
+- **Gỡ root qdisc TrafficControl** (ns-3.45 tự cài FqCoDel khi gán địa chỉ):
+  không gỡ thì CBR đệm hai tầng còn probe L2 một tầng. Guard NS_FATAL giữ
+  trong code.
+- **Ba cách đo của P0 dùng lại y hệt**; per-attempt, không post-ARQ;
+  `--fail-on-dirty` cho mọi run có số.
 
 ## Sự thật đã đo, ghi để khỏi suy lại
 
-- **Sàn detect mặc định của ns-3 là −82 dBm** (`ThresholdPreambleDetectionModel`),
-  cao hơn giới hạn do nhiễu 7 dB. Nó kiểm duyệt cả **feature RSSI** chứ không
-  chỉ nhãn.
-- **Bề rộng vùng chuyển tiếp ≈ 2.56·σ_fading ≈ 5.4 dB**, không phụ thuộc sàn.
-  Hạ sàn mua **tầm phủ**, không mua bề rộng waterfall.
-- **degree 5.28 của `fanet-tier2.conf` không tái lập được** — đo lại ở đúng
-  20 dBm/−82 ra 1.06 (chặt) hoặc 3.99 (lỏng). Scenario sinh ra nó
-  (`link-dataset-fanet.cc`) không có trong cây nên **điều kiện đo chưa biết**;
-  không tuyên bố con số cũ sai, chỉ là không kiểm chứng được ở đây. Phép đo mới
-  có kiểm chứng hình học độc lập (0.92 ở R=300 vs 1.06 đo; ~6.0 ở R=625 vs 6.14
-  đo). Đã chú giải ngay trong conf, không xoá bảng cũ.
-- **Ngân sách link = TxPower − sàn.** `12 dBm/−101` và `20 dBm/−82` cùng 102 dB
-  nên cùng R trong phép đo cô lập, **nhưng không tương đương ở P2**: với sàn
-  −101 ràng buộc rơi vào `Threshold` SNR nên mép link dịch theo can nhiễu; sàn
-  −82 là hằng số tuyệt đối, không nhúc nhích dưới tải.
-- **Cảnh báo "degree > 11 làm abort" của conf đã lỗi thời.** Run ở degree
-  22.33 chạy hết 300 s exit sạch. **Patch `phy-entity` lần đầu được kiểm thật
-  (30 node × 300 s × 3 run, không hit assert) — mục Bất thường 5 của P0 đóng.**
-- **Định nghĩa link đổi degree gấp gần 4 lần** trên cùng dữ liệu. Mọi con số
-  degree phải đi kèm định nghĩa.
+- **ns-3.45 tự cài root qdisc (FqCoDel) lên WifiNetDevice khi gán địa chỉ
+  IP.** Không tin tài liệu cũ nói "không còn default qdisc".
+- **Trace `Tx` của OnOffApplication chỉ bắn khi `Send` thành công** — với
+  UDP + OLSR, gói không có route không được đếm. `cbr_app_tx` là "đã rời
+  node", không phải "theo lịch".
+- **Ước lượng airtime probe phải nhân hai hệ số**: tập admission theo TTL
+  lỏng (~9 neighbor ở TTL 2 s, không phải degree chặt 6.14) và khuếch đại
+  ARQ (~×5.4 khi trong tập có link chết). Thiếu cả hai → sai 7.8×.
+- **corr(retry, rssi) âm sâu (−0.86) NGAY TRONG bão hoà** — gánh retry dồn
+  lên link yếu nên corr một mình không chẩn đoán được bão hoà; phải nhìn
+  bảng airtime tách nguồn.
+- **MaxDelay 100 ms không phải thủ phạm bão hoà**: queue expired 0.38%,
+  tràn 0, p50 13 ms. Airtime đốt trên sóng (retry), không phải backlog.
+- Degree đo trong bão hoà (1.79) là con số về kênh, không phải về hình học —
+  positions cùng phân bố với P1.
+- Phân bố nhãn ở điểm này KHÔNG bị ceiling: ghim-1.0 chỉ 2.6%, 75.2% dòng ở
+  0 < pdr < 1, median trials 39.
 
 ## Chưa chạm
 
-`frozen/` (rỗng), `data/{calib,train,eval}/` (rỗng). `data/eval/` cấm tới P10.
-`config/` rỗng — config thật nằm ở `sim-config/` theo CLAUDE.md; thư mục
-`config/` trong WORKFLOW mục 2 hiện không dùng.
+`frozen/` (rỗng), `data/{calib,train,eval}/` (rỗng). `data/eval/` cấm tới
+P10. Chưa fit gì, chưa hiệu chuẩn gì (P3/P5 chưa bắt đầu).
