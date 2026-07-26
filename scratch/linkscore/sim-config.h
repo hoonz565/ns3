@@ -91,9 +91,15 @@ KnownKeys()
         "probeInterval",
         "probeBytes",
         "neighborTtl",
+        // --- Tai nen + queue (P2)
+        "cbrFlows",
+        "cbrBytes",
+        "cbrPps",
+        "maxQueueDelayMs",
         // --- Cua so feature / nhan (P2)
         "featureWin",
         "labelWin",
+        "warmupTime",
         "minRssiSamples",
         "minTrials",
         // --- Cong nghiem thu (Python doc)
