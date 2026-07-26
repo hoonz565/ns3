@@ -225,20 +225,57 @@ def gate2_retry(meta: dict, bins: pd.DataFrame) -> dict:
     }
 
 
-def gate3_sigma(
-    rx: pd.DataFrame,
-    meta: dict,
-    floor_dbm: float = RSSI_FLOOR_DBM,
-    margin_db: float = FLOOR_MARGIN_DB,
-) -> dict:
-    """Residual σ theo từng tier m của Nakagami, sau khi loại vùng sát sàn RSSI."""
+def floor_of(meta: dict) -> float:
+    """Sàn detect của run. Run cũ không có trường này thì là mặc định ns-3."""
+    return float(meta.get("min_rssi_dbm", RSSI_FLOOR_DBM))
+
+
+def _residuals(rx: pd.DataFrame, meta: dict, margin_db: float):
+    """(residual, m mỗi dòng, offset so với dự đoán Jensen, số dòng bị loại).
+
+    `offset` = residual − E[dB](m) đã trừ sẵn kỳ vọng theo từng tier, nên gộp
+    được các tier khác m vào một phép thử duy nhất cho độ lệch cộng tính.
+    """
     theory = theory_rssi_dbm(rx["dist_m"], meta)
-    keep = theory >= (floor_dbm + margin_db)
-    n_censored = int((~keep).sum())
+    keep = theory >= (floor_of(meta) + margin_db)
+    n_dropped = int((~keep).sum())
 
     rx = rx[keep].reset_index(drop=True)
     resid = rx["rssi_dbm"].to_numpy() - theory_rssi_dbm(rx["dist_m"], meta)
     m_of_row = nakagami_m_of(rx["dist_m"], meta)
+    offset = resid - np.array([predicted_mean_db(m) for m in m_of_row])
+    return resid, m_of_row, offset, n_dropped
+
+
+def gate3_sigma(sigma_runs: list[dict], margin_db: float = FLOOR_MARGIN_DB) -> dict:
+    """Residual σ theo từng tier m, gộp mọi seed được truyền vào.
+
+    Gộp nhiều seed để tách hai giả thuyết cho độ lệch mean: hiện vật RNG của
+    một seed (gộp lại thì tan về 0) so với lệch hệ thống (giữ nguyên ở mọi
+    seed). Với một seed thì SE của mean gộp ~0.022 dB, không đủ để kết luận.
+    """
+    all_resid, all_m, all_offset = [], [], []
+    per_seed, n_dropped_total = [], 0
+
+    for run in sigma_runs:
+        resid, m_of_row, offset, n_dropped = _residuals(run["rx"], run["meta"], margin_db)
+        n_dropped_total += n_dropped
+        all_resid.append(resid)
+        all_m.append(m_of_row)
+        all_offset.append(offset)
+        per_seed.append(
+            {
+                "seed": run["meta"]["seed"],
+                "n": int(len(offset)),
+                "offset_mean_db": float(np.mean(offset)),
+                "offset_se_db": float(np.std(offset, ddof=1) / math.sqrt(len(offset))),
+            }
+        )
+
+    resid = np.concatenate(all_resid)
+    m_of_row = np.concatenate(all_m)
+    offset = np.concatenate(all_offset)
+    meta = sigma_runs[0]["meta"]
 
     tiers = []
     for m in (meta["nakagami_m0"], meta["nakagami_m1"], meta["nakagami_m2"]):
@@ -257,24 +294,94 @@ def gate3_sigma(
             # σ của mẫu có sai số chuẩn σ/sqrt(2n) — cần để biết lệch là thật
             # hay chỉ là ít mẫu.
             tier["sigma_se_db"] = tier["sigma_meas_db"] / math.sqrt(2 * n)
+            tier["offset_mean_db"] = float(np.mean(offset[sel]))
+            tier["offset_se_db"] = float(
+                np.std(offset[sel], ddof=1) / math.sqrt(n)
+            )
         tiers.append(tier)
 
     checkable = [t for t in tiers if t["n"] >= GATE_MIN_TIER_SAMPLES]
     ok = bool(checkable) and all(
         abs(t["sigma_err_db"]) <= GATE_SIGMA_TOL_DB for t in checkable
     )
+
+    pooled_mean = float(np.mean(offset))
+    pooled_se = float(np.std(offset, ddof=1) / math.sqrt(len(offset)))
     return {
         "tiers": tiers,
         "tiers_checked": [t["m"] for t in checkable],
         "tiers_skipped_few_samples": [
             t["m"] for t in tiers if t["n"] < GATE_MIN_TIER_SAMPLES
         ],
-        "rssi_floor_dbm": floor_dbm,
+        "rssi_floor_dbm": floor_of(meta),
         "floor_margin_db": margin_db,
-        "rows_dropped_near_floor": n_censored,
-        "rows_used": int(len(rx)),
+        "rows_dropped_near_floor": n_dropped_total,
+        "rows_used": int(len(offset)),
+        "n_seeds": len(sigma_runs),
+        "per_seed": per_seed,
+        # Độ lệch cộng tính dùng chung, đã trừ kỳ vọng Jensen của từng tier.
+        "offset_pooled_db": pooled_mean,
+        "offset_pooled_se_db": pooled_se,
+        "offset_pooled_z": pooled_mean / pooled_se if pooled_se else float("nan"),
         "pass": ok,
     }
+
+
+def _crossing(bins: pd.DataFrame, column: str, level: float) -> float:
+    """Khoảng cách nơi `column` lần đầu tụt xuống dưới `level`, nội suy tuyến tính."""
+    b = bins.dropna(subset=[column]).sort_values("bin")
+    d = b["bin"].to_numpy(dtype=float)
+    v = b[column].to_numpy(dtype=float)
+    for i in range(1, len(v)):
+        if v[i] < level <= v[i - 1]:
+            if v[i - 1] == v[i]:
+                return float(d[i])
+            frac = (v[i - 1] - level) / (v[i - 1] - v[i])
+            return float(d[i - 1] + frac * (d[i] - d[i - 1]))
+    return float("nan")
+
+
+def range_summary(run: dict) -> dict:
+    """Tầm phủ và bề rộng vùng chuyển tiếp của một run.
+
+    Bề rộng báo cáo bằng **dB** bên cạnh mét: dB không phụ thuộc TxPower nên
+    suy được tầm phủ ở công suất khác, còn mét thì không.
+    """
+    rx, bins, meta = run["rx"], run["bins"], run["meta"]
+    noise = float(rx["noise_dbm"].iloc[0])
+    floor = floor_of(meta)
+    # Sàn hiệu dụng = max(MinimumRssi, noise + Threshold). Threshold mặc định
+    # 4 dB SNR — dựa trên SNR nên nó là ràng buộc vật lý, khác với hằng số tuyệt đối.
+    floor_eff = max(floor, noise + 4.0)
+
+    out = {
+        "label": run.get("label"),
+        "tx_power_dbm": meta["tx_power_dbm"],
+        "min_rssi_dbm": floor,
+        "noise_dbm": noise,
+        "floor_effective_dbm": floor_eff,
+        "last_rx_dist_m": float(rx["dist_m"].max()),
+        "last_rx_rssi_dbm": float(rx["rssi_dbm"].min()),
+        "probe_interval_ms": meta["probe_interval_ms"],
+    }
+    for level in (0.9, 0.5, 0.1):
+        d = _crossing(bins, "frame_success", level)
+        out[f"dist_at_success_{level:g}_m"] = d
+        out[f"rssi_at_success_{level:g}_dbm"] = (
+            float(theory_rssi_dbm([d], meta)[0]) if not math.isnan(d) else float("nan")
+        )
+    d90, d10 = out["dist_at_success_0.9_m"], out["dist_at_success_0.1_m"]
+    out["waterfall_width_m"] = d10 - d90
+    out["waterfall_width_db"] = (
+        out["rssi_at_success_0.9_dbm"] - out["rssi_at_success_0.1_dbm"]
+    )
+    # TxPower cần để đạt R = 500 m với chính sàn hiệu dụng của run này.
+    c = 299792458.0
+    ref_loss = 20.0 * math.log10(4.0 * math.pi / (c / (meta["freq_mhz"] * 1e6)))
+    out["txpower_for_500m_dbm"] = (
+        floor_eff + ref_loss + 10.0 * meta["exponent"] * math.log10(500.0)
+    )
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -399,27 +506,33 @@ def main(argv=None) -> int:
     p.add_argument("--fading", required=True, help="thư mục run --fading=true (cổng 2)")
     p.add_argument(
         "--sigma",
-        help="thư mục run dùng cho cổng 3 (mặc định: chính --fading). Dùng run "
-        "TxPower cao để cả ba tier m đều nằm trên sàn detect −82 dBm.",
+        nargs="+",
+        default=None,
+        metavar="DIR",
+        help="một hoặc nhiều thư mục run cho cổng 3 (mặc định: chính --fading). "
+        "Dùng run TxPower cao để cả ba tier m đều nằm trên sàn detect. Truyền "
+        "nhiều seed để kiểm độ lệch mean là hiện vật RNG hay hệ thống.",
+    )
+    p.add_argument(
+        "--range",
+        nargs="+",
+        default=[],
+        metavar="DIR",
+        dest="range_dirs",
+        help="các run để đo tầm phủ và bề rộng vùng chuyển tiếp (không phải cổng)",
     )
     p.add_argument("--figures", default="figures", help="thư mục ghi hình")
     p.add_argument("--bin", type=float, default=10.0, help="độ rộng bin khoảng cách (m)")
     p.add_argument("--json-out", help="ghi toàn bộ kết quả ra JSON")
     args = p.parse_args(argv)
 
-    sources = [("fading=off", args.nofading), ("fading=on", args.fading)]
-    sigma_label = "fading=on"
-    if args.sigma and Path(args.sigma) != Path(args.fading):
-        sigma_label = "fading=on, TxPower cao"
-        sources.append((sigma_label, args.sigma))
-
-    runs = {}
-    for label, raw in sources:
+    def load(label, raw):
         run_dir = Path(raw)
         if not run_dir.is_absolute():
             run_dir = REPO_ROOT / run_dir
         rx, tx, meta = load_run(run_dir)
-        runs[label] = {
+        return {
+            "label": label,
             "dir": str(run_dir),
             "rx": rx,
             "tx": tx,
@@ -427,15 +540,29 @@ def main(argv=None) -> int:
             "bins": per_bin(tx, rx, args.bin),
         }
 
+    sigma_dirs = args.sigma or [args.fading]
+    sigma_label = "fading=on"
+    sources = [("fading=off", args.nofading), ("fading=on", args.fading)]
+    if Path(sigma_dirs[0]) != Path(args.fading):
+        sigma_label = "fading=on, TxPower cao"
+        sources.append((sigma_label, sigma_dirs[0]))
+
+    runs = {label: load(label, raw) for label, raw in sources}
+    sigma_runs = (
+        [runs[sigma_label]]
+        if sigma_label == "fading=on"
+        else [load(f"sigma[{i}]", d) for i, d in enumerate(sigma_dirs)]
+    )
+    range_runs = [load(f"range[{i}]", d) for i, d in enumerate(args.range_dirs)]
+
     off, on = runs["fading=off"], runs["fading=on"]
     if off["meta"]["fading"] or not on["meta"]["fading"]:
         print("LỖI: --nofading/--fading trỏ sai thư mục (kiểm tra meta.json).", file=sys.stderr)
         return 1
 
-    sig = runs[sigma_label]
     g1 = gate1_theory(off["rx"], off["meta"])
     g2 = gate2_retry(on["meta"], on["bins"])
-    g3 = gate3_sigma(sig["rx"], sig["meta"])
+    g3 = gate3_sigma(sigma_runs)
 
     print("=" * 78)
     print("P0 — KIỂM CHỨNG THIẾT BỊ ĐO")
@@ -491,8 +618,55 @@ def main(argv=None) -> int:
             f"  BỎ QUA tier m = {g3['tiers_skipped_few_samples']} vì < "
             f"{GATE_MIN_TIER_SAMPLES} mẫu — link chết trước khi tới đó."
         )
-    print(f"  ngưỡng |lệch σ| ≤ {GATE_SIGMA_TOL_DB} dB")
+    print(f"  ngưỡng |lệch σ| ≤ {GATE_SIGMA_TOL_DB} dB   ({g3['n_seeds']} seed)")
     print("  " + fmt_gate("cổng 3", g3["pass"]))
+
+    print("\n--- Độ lệch cộng tính so với dự đoán Jensen (không phải cổng) ---")
+    print("  offset = residual − E[dB](m), đã trừ kỳ vọng của từng tier nên gộp được")
+    print(f"  {'seed':>6} {'n':>7} {'offset':>9} {'SE':>7} {'z':>7}")
+    for s in g3["per_seed"]:
+        z = s["offset_mean_db"] / s["offset_se_db"] if s["offset_se_db"] else float("nan")
+        print(
+            f"  {s['seed']:>6} {s['n']:>7} {s['offset_mean_db']:>+9.4f} "
+            f"{s['offset_se_db']:>7.4f} {z:>+7.2f}"
+        )
+    print(
+        f"  {'GỘP':>6} {g3['rows_used']:>7} {g3['offset_pooled_db']:>+9.4f} "
+        f"{g3['offset_pooled_se_db']:>7.4f} {g3['offset_pooled_z']:>+7.2f}"
+    )
+    print("  theo tier:")
+    for t in g3["tiers"]:
+        if "offset_mean_db" in t:
+            z = t["offset_mean_db"] / t["offset_se_db"] if t["offset_se_db"] else 0.0
+            print(
+                f"    m={t['m']:.0f}: {t['offset_mean_db']:+.4f} dB "
+                f"(SE {t['offset_se_db']:.4f}, z {z:+.2f}, n {t['n']})"
+            )
+    verdict = (
+        "TAN VỀ 0 khi gộp seed → hiện vật RNG, đóng lại"
+        if abs(g3["offset_pooled_z"]) < 3
+        else "GIỮ NGUYÊN qua các seed → lệch hệ thống, cần truy nguồn"
+    )
+    print(f"  Kết luận: {verdict}")
+
+    if range_runs:
+        print("\n--- Tầm phủ và bề rộng vùng chuyển tiếp (không phải cổng) ---")
+        rs = [range_summary(r) for r in range_runs]
+        hdr = (
+            f"  {'TxPwr':>6} {'MinRssi':>8} {'sàn hd':>7} {'d(0.9)':>7} {'d(0.5)':>7} "
+            f"{'d(0.1)':>7} {'rộng m':>7} {'rộng dB':>8} {'Ptx→500m':>9}"
+        )
+        print(hdr)
+        for r in rs:
+            print(
+                f"  {r['tx_power_dbm']:>6.0f} {r['min_rssi_dbm']:>8.0f} "
+                f"{r['floor_effective_dbm']:>7.1f} {r['dist_at_success_0.9_m']:>7.0f} "
+                f"{r['dist_at_success_0.5_m']:>7.0f} {r['dist_at_success_0.1_m']:>7.0f} "
+                f"{r['waterfall_width_m']:>7.0f} {r['waterfall_width_db']:>8.2f} "
+                f"{r['txpower_for_500m_dbm']:>9.1f}"
+            )
+        print("  d(x) = khoảng cách nơi tỉ lệ giải mã tụt xuống x; rộng dB không phụ")
+        print("  thuộc TxPower nên suy được tầm phủ ở công suất khác.")
 
     figures = make_figures(runs, sigma_label, REPO_ROOT / args.figures)
     print("\n--- Hình ---")
@@ -515,6 +689,7 @@ def main(argv=None) -> int:
                     "gate1_theory": g1,
                     "gate2_retry": g2,
                     "gate3_sigma": g3,
+                    "range_summary": [range_summary(r) for r in range_runs],
                     "all_pass": all_pass,
                     "meta": {k: v["meta"] for k, v in runs.items()},
                 },
