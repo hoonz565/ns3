@@ -38,7 +38,7 @@ RSSI (mức) + RSSI slope + MAC retry
 | Tạo phẩm | Sinh ra ở | Từ batch | Sau đó là hằng số |
 |---|---|---|---|
 | `normalization.json` (p20/p80) | P3 | **calibration** (5 seed) | ✓ |
-| `(a, b, c)` | P5 | **training** (15 seed) | ✓ |
+| `(a, b, c)` | P5 | **training** (30 seed) | ✓ |
 | Mọi con số báo cáo | P10 | **test / evaluation** (5 seed) | — |
 
 Ba batch **rời nhau hoàn toàn**, chia **theo seed** chứ không theo dòng (các dòng trong một lần chạy tương quan mạnh).
@@ -104,7 +104,7 @@ Nếu dataset huấn luyện tính RSSI bằng trung bình cửa sổ mà node t
 | | **Nakagami m₀/m₁/m₂** | **8 / 5 / 3** | LoS trên không; 0.75 là kênh đô thị |
 | | **Distance1 / Distance2** | **100 m / 300 m** | Mặc định 80/200 m là thang mặt đất |
 | Thời gian | Sim time | 300 s | |
-| | Seed | 25 (5 calib / 15 train / 5 test) | |
+| | Seed | **40** (5 calib / 30 train / 5 test) — chốt P2, ~3 phút/seed nên 40 seed ≈ 2 h | Quy tắc 6: cluster-robust cần 30–50 cluster |
 | Cửa sổ | Δ (feature) | 4 s | Xem P7 — 2 s thì slope chìm trong nhiễu |
 | | τ (nhãn) | 4 s | |
 
@@ -186,7 +186,7 @@ Vì sao sống còn: MAC retry và PDR gần như cùng một đại lượng v�
 
 Chỉ số thứ ba dễ bỏ sót nhất. 90% link có PDR = 1.0 thì regression không có gì để học. **Link PDR 30% quý hơn link PDR 100%** — vùng biên là nơi công thức phải phân biệt được.
 
-**Không bao giờ lọc theo giá trị nhãn.** Chỉ lọc theo số mẫu (`trials ≥ 5`). Lọc theo PDR cao là cách chắc chắn nhất để fit ra mô hình vô dụng.
+**Không bao giờ lọc theo giá trị nhãn — và cũng không lọc theo số trials** (chốt 2026-07-27, bản cũ ghi "chỉ lọc theo `trials ≥ 5`"). GLM nhị thức đã trọng số theo n — đó chính là điều phân biệt nó với hồi quy trên tỉ lệ. Ngưỡng trials còn có hại: link biên chết sớm nên ít attempt hơn, tức trials tương quan với nhãn — lọc theo nó là kiểm duyệt đúng loại đã tránh ở mọi chỗ khác. `minTrials = 2` trong conf là bộ lọc vệ sinh của harness, không phải ngưỡng thống kê. Phân bố trials vào Limitations.
 
 ---
 
@@ -229,7 +229,7 @@ Lưu ý `retry_rate` đã nằm trong [0,1) theo định nghĩa, nên phép clip
 
 ## P4 — Dataset huấn luyện
 
-20 seed rời hoàn toàn với calibration. Áp `normalization.json` đã đóng băng. Chia train/test **theo seed** (15/5).
+35 seed rời hoàn toàn với calibration (chốt P2: 30 train + 5 test). Áp `normalization.json` đã đóng băng. Chia train/test **theo seed** (30/5).
 
 **Cổng.**
 - VIF giữa `s_rssi` và `s_slope` < 5 — node tiến lại gần có cả RSSI cao lẫn slope dương, cộng tuyến là rủi ro thật

@@ -357,10 +357,22 @@ it is an unusable one, and 25 seeds of it are 25 unusable seeds.
   than a link at 1.00; the boundary region is where the formula must
   discriminate.
 
-**Never filter rows by label value.** Filter only by sample count
-(`trials ≥ 5`). Keeping only high-PDR links is the surest way to fit a useless
-model: within that subset RSSI barely correlates with PDR, so β_RSSI comes out
-near zero — the opposite of the truth.
+**Never filter rows by label value.** Keeping only high-PDR links is the
+surest way to fit a useless model: within that subset RSSI barely correlates
+with PDR, so β_RSSI comes out near zero — the opposite of the truth.
+
+**And never filter rows by trials count either** (settled 2026-07-27; an
+earlier version of this file said "filter only by `trials ≥ 5`"). Keep every
+row the harness emits — the binomial GLM weights each row by its `n`, which
+is exactly what distinguishes it from regression on a ratio (rule 3). The
+`trials ≥ 5` guidance was a relic of treating the label as a continuous
+ratio, and it is actively **harmful** here: boundary links die early and so
+accumulate fewer attempts per window, which makes trials *correlated with the
+label* — filtering on it is the same censorship this design avoids everywhere
+else. `minTrials = 2` in the conf is a harness hygiene filter (a 1-trial row
+carries almost no information and bloats the file), not a statistical
+threshold. Report the trials distribution in Limitations instead of
+truncating it.
 
 **If a gate fails, stop and report. Do not loosen the threshold to pass.**
 
@@ -440,7 +452,7 @@ bite you** (see the Nakagami note below).
 | Feature window Δ | 4 s | At 2 s the slope SNR is ≈1 and β_slope is unidentifiable |
 | Label window τ | 4 s | |
 | Sim time | 300 s, discard first 30 s | Gauss-Markov and neighbour tables need warmup |
-| Seeds | 40+ preferred over longer runs | See rule 6 |
+| Seeds | **40** = 5 calibration / 30 training / 5 evaluation (settled P2; run 3 wall time ~3 min/seed) | Rule 6 wants 30–50 clusters; more seeds beat longer runs |
 
 ### Build and run
 
