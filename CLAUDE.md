@@ -267,6 +267,22 @@ fading. So the check that LinkScore is more than a disguised distance
 estimator is **the t-statistic of β_slope**, not the σ of the fading. Do not
 "fix" the channel by raising fading to hit a σ target.
 
+**`rssi_level` carries no information beyond distance in this simulation —
+by channel construction, not as an empirical finding.** The loss chain is
+LogDistance + Nakagami with **no per-link shadowing constant**, so E[RSSI]
+is a deterministic function of distance: two links at equal distance have
+equal expected RSSI *by definition*. The between-/within-link SD ratio of
+0.39–0.68 measured in P2 is a consequence of that construction, not a
+discovery about FANETs. For the paper this goes in **Results, not
+Limitations**: LinkScore's value beyond geometry lives in **slope** (the
+derivative of distance — a position snapshot does not give it) and **retry**
+(interference, actual channel state), not in level — and if β_RSSI comes out
+significant, say plainly that it encodes distance. Future work, not this
+paper: per-link log-normal shadowing is the condition under which
+`rssi_level` acquires content of its own (changing channel physics after the
+P1 freeze means re-running all 35 seeds, with no guarantee the conclusion
+changes).
+
 ### 12. The dataset must be probed, not merely observed
 Application traffic only crosses links OLSR routed over, so retry and the PDR
 label are censored to on-path links — while RSSI, riding on broadcast
@@ -373,6 +389,14 @@ else. `minTrials = 2` in the conf is a harness hygiene filter (a 1-trial row
 carries almost no information and bloats the file), not a statistical
 threshold. Report the trials distribution in Limitations instead of
 truncating it.
+
+**The same ban covers `rssi_n`** (settled 2026-07-27, P3; supersedes the
+"fit a separate `rssi_n ≥ 20` subset" advice in the P2-era notes): boundary
+links lose beacons, so `rssi_n` correlates with the label and filtering on it
+censors exactly the boundary region. Slope measurement noise is handled by
+the P5 correction ladder instead — raw fit, then stratify by `rssi_n`, then
+reliability-ratio correction with the *known* noise variance (PLAN.md P5,
+"Attenuation của β_slope") — never by dropping rows.
 
 **If a gate fails, stop and report. Do not loosen the threshold to pass.**
 

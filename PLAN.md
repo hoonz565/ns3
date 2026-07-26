@@ -253,6 +253,22 @@ res = sm.GLM(np.c_[successes, failures], X,
 print(res.summary())
 ```
 
+### Bước 0 — phân tích chiều TRƯỚC khi fit (thêm 2026-07-27, P3)
+
+PCA / phổ giá trị riêng trên ba feature đã chuẩn hoá z-score, toàn tập 35
+seed, **trước mọi GLM**. Đây là phân tích mô tả: hằng số z-score tính trên
+tập gộp KHÔNG được tái dùng trong bất kỳ mô hình được fit/so sánh nào
+(mọi thứ vào bảng đối chứng tuân thủ chia theo seed của quy tắc 15). Lý do: `rssi_level` ≈ f(khoảng cách) theo cấu tạo
+kênh (mục "Diễn giải β_RSSI" bên dưới), và corr(level, retry) = −0.793 nên
+retry cũng phần lớn là khoảng cách — ba feature có thể chỉ là **một chiều
+thông tin (khoảng cách) cộng nhiễu**. corr(level, slope) = 0.000 toàn cục
+là tin tốt: slope chắc chắn mang chiều thứ hai.
+
+Tiêu chí đọc: nếu hai thành phần đầu giải thích **> 95% phương sai** thì
+công thức ba số hạng đang thừa một số hạng, và điều đó phải được **nói
+thẳng trong paper** (một câu trong Results) chứ không để nó lộ ra qua một
+β không ý nghĩa mà không ai giải thích.
+
 **Bốn quy tắc.**
 
 1. **Không nhị phân hoá nhãn.** Không ngưỡng τ. Cắt ngưỡng vứt khác biệt giữa 0.72 và 0.94, và đẻ ra siêu tham số phải biện minh.
@@ -272,6 +288,55 @@ logit(p) = γ₀ + γ₁·RSSI(t+τ) = γ₀ + γ₁·RSSI(t) + (γ₁·τ)·slo
 Suy ra dự đoán kiểm tra được: **β_slope / β_RSSI ≈ τ**. Đơn vị khớp — β_RSSI là [1/dB], β_slope là [s/dB], tỉ số ra **giây**.
 
 Nếu tỉ số này xấp xỉ đúng horizon nhãn, bạn có bằng chứng trực tiếp rằng slope đang làm đúng việc dự báo, không phải chỉ là biến tương quan ngẫu nhiên. Đây là một kết quả rất mạnh — và nó **chỉ hiện ra khi fit trên feature thô**. Chuẩn hoá từng metric độc lập sẽ phá tỉ số này.
+
+### Diễn giải β_RSSI: level không mang tin vượt khoảng cách — THEO CẤU TẠO KÊNH (thêm 2026-07-27, P3)
+
+Kênh của mô phỏng này là LogDistance + Nakagami, **không có shadowing
+per-link**: không cặp node nào có hằng số suy hao riêng, nên E[RSSI] là
+**hàm tất định của khoảng cách** — hai link cùng khoảng cách có RSSI kỳ
+vọng bằng nhau *theo định nghĩa*. Tỉ số SD liên-link/trong-link 0.39–0.68
+đo được ở P2 là **hệ quả tất yếu của cấu tạo đó, không phải phát hiện thực
+nghiệm** — đừng trình bày nó như một khám phá về FANET.
+
+Hệ quả cho paper — viết vào **Results, không phải Limitations**: giá trị
+vượt-hình-học của LinkScore nằm ở **slope** (đạo hàm của khoảng cách — một
+ảnh chụp vị trí không cho được) và **retry** (can nhiễu, trạng thái kênh
+thật), **không nằm ở level**. Nếu β_RSSI ra đáng kể thì nói thẳng: nó đang
+mã hoá khoảng cách, không đo "chất lượng kênh vượt trên khoảng cách".
+
+Future Work (không làm trong paper này): shadowing log-normal per-link là
+điều kiện để `rssi_level` có nội dung riêng. Đổi tham số vật lý sau khi P1
+đóng băng nghĩa là chạy lại toàn bộ 35 seed, và chưa chắc đổi kết luận.
+
+### Attenuation của β_slope: hiệu chỉnh, KHÔNG lọc (thêm 2026-07-27, P3)
+
+Slope có nhiễu đo dị phương sai theo khoảng cách (`rssi_n` median 38 → 4
+từ bin gần ra xa, SE(slope) ~0.22 → ~1.2 dB/s — bảng trong
+`reports/P2-batch.md`) → errors-in-variables → attenuation bias kéo
+β_slope về 0, mạnh nhất ở link biên. Xử lý bằng **ba bước tăng dần, dừng
+sớm được**:
+
+1. **Fit thô** — cả tập, không đụng gì.
+2. **Fit phân tầng theo `rssi_n`** (ví dụ dải n: 3–9 / 10–19 / 20–29 /
+   ≥30). Nếu β_slope **tăng đơn điệu theo rssi_n** thì đó là bằng chứng
+   **trực tiếp** cho attenuation — không còn là suy đoán. Nếu β_slope ổn
+   định giữa các tầng thì attenuation không đáng kể: dừng, dùng fit thô.
+3. **Hiệu chỉnh bằng tỉ lệ tin cậy (reliability ratio).** Khác bài
+   errors-in-variables tổng quát, ở đây phương sai nhiễu đo là **đã
+   biết**, không ẩn: SE(slope) tính được dạng đóng từ `rssi_n` và σ
+   fading của tier Nakagami (P0 đã kiểm chứng σ theo m). Khi đó
+   β_quan_sát = β_thật · var_thật/(var_thật + var_đo) — giải ngược ra
+   β_thật và **báo cáo cả hai con số**, kèm cách tính.
+
+**Không lọc `rssi_n ≥ 20`** (thay chỉ dẫn cũ từng ghi ở Limitations phase
+này): lọc theo `rssi_n` bỏ đúng link biên — vùng công thức phải phân biệt
+tốt nhất — và `rssi_n` tương quan với nhãn (link biên mất beacon), nên đây
+là kiểm duyệt cùng loại với lọc theo trials mà cổng P2 đã cấm. Fit phân
+tầng ở bước 2 cho cùng thông tin mà không vứt dòng nào.
+
+**Một phân tích, hai chỗ dùng:** đường cong β_slope theo `rssi_n` của bước
+2 chính là đường cong P7 cần cho dual control — SE(slope) ∝ 1/√n, và ở
+Tier 3 n = Δ/H. Làm một lần ở P5, P7 đọc lại kết quả.
 
 ### Mô hình đối chứng — phần quyết định sức nặng của paper
 
@@ -321,8 +386,10 @@ là mẫu bị chọn lọc phía trên sàn.
 Hai limitation đo được khác cùng nguồn (số trong `reports/P2-batch.md`):
 slope có **nhiễu đo dị phương sai theo khoảng cách** (rssi_n median 38 → 4
 từ bin gần ra xa; SE(slope) ~0.22 → ~1.2 dB/s) → attenuation bias kéo
-β_slope về 0 mạnh nhất ở link biên — nếu β_slope yếu, fit riêng tập
-`rssi_n ≥ 20` để tách "không mang tin" khỏi "bị đo ồn"; và
+β_slope về 0 mạnh nhất ở link biên — xử lý theo mục "Attenuation của
+β_slope" phía trên (**hiệu chỉnh, không lọc**; chỉ dẫn cũ "fit riêng tập
+`rssi_n ≥ 20`" đã bị thay 2026-07-27 vì lọc theo rssi_n là kiểm duyệt
+link biên); và
 **corr(rssi_level, retry_rate) = −0.79** toàn tập — mô hình chỉ-retry (AR
 baseline) trong bảng đối chứng là phép thử quyết định, không phải tuỳ chọn.
 
