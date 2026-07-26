@@ -961,6 +961,14 @@ main(int argc, char* argv[])
     addressHelper.SetBase("10.1.0.0", "255.255.0.0");
     Ipv4InterfaceContainer ifaces = addressHelper.Assign(g_devices);
 
+    // ns-3.45 tu cai root qdisc (FqCoDel) len device khi gan dia chi. Go no:
+    // CBR se xep hang hai tang (qdisc + WifiMacQueue) trong khi probe L2 di
+    // thang NetDevice::Send chi mot tang — hai lop trial cua cung mot nhan
+    // chiu hai che do dem khac nhau, va MaxDelay chi quan ly tang duoi.
+    // Guard phia duoi giu nguyen de viec nay khong bao gio tai dien im lang.
+    TrafficControlHelper tch;
+    tch.Uninstall(g_devices);
+
     for (uint32_t i = 0; i < numNodes; ++i)
     {
         g_mob.push_back(g_nodes.Get(i)->GetObject<MobilityModel>());
