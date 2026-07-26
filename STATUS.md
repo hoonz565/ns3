@@ -7,26 +7,17 @@ Cập nhật lần cuối: 2026-07-27
 
 ## Phase hiện tại
 
-**P2 HOÀN TẤT — CHỜ DUYỆT SANG P3. Dataset đóng: 35/35 seed PASS cả 7 cổng,
-`data/calib/` = seeds 1–5 (105 869 dòng), `data/train/` = seeds 6–35
-(652 432 dòng), tổng 758 301 dòng, provenance đồng nhất (một SHA
-`c90310d86`, một binary hash, cây sạch suốt hai batch). `data/eval/` RỖNG —
-bất biến `run_tests.sh` cưỡng chế tới P10. Báo cáo batch + ba phân tích
-tiền-P5: `reports/P2-batch.md`.**
+**P3 HOÀN TẤT — CHỜ DUYỆT SANG P4. `frozen/normalization.json` đã đóng
+băng từ 105 869 dòng của đúng 5 seed calib (p20/p80 `rssi_level` =
+−88.6141/−84.7784 dBm, `rssi_slope` = −0.3794/+0.3761 dB/s; p5/p95 ghi kèm
+chỉ để P5 so bản clip rộng; `retry_rate` ngưỡng vật lý [0,1], không
+percentile). `gateNearQMax` hiệu chuẩn lại 0.35 → 0.38 từ phân bố 35 điểm.
+Ba mục chuẩn bị P5 đã vào PLAN.md. KHÔNG fit gì. Báo cáo:
+`reports/P3-calibration.md`.**
 
-Ba phân tích (không mô phỏng thêm): (1) `rssi_n` tụt 38 → 4 từ bin gần ra
-xa → SE(slope) ~0.22 → ~1.2 dB/s — attenuation bias kéo β_slope về 0 mạnh
-nhất ở link biên, P5 phải fit riêng `rssi_n ≥ 20` nếu β_slope yếu; (2) SD
-liên-link < trong-link ở MỌI bin (0.39–0.68) — mean RSSI không phân biệt
-link trong cùng bin (kênh không có shadowing per-link — khai báo, và khớp
-quy tắc 11: giá trị vượt-khoảng-cách nằm ở slope); (3) corr(level, retry) =
-−0.793 toàn tập (r² 63%) — AR baseline của P5 là phép thử quyết định;
-level~slope = 0.000 toàn cục (VIF ≈ 1, mối lo cộng tuyến không thành).
-
-Thiết kế Tier 2 đã đổi và đã ghi vào tài liệu TRƯỚC khi viết code: OLSR chuẩn
-(chỉ tạo tải, mù LinkScore) + CBR đa chặng + beacon L2 10 Hz (nguồn duy nhất
-của RSSI) + probe L2 mỗi-neighbor. Nhãn per-attempt tách cột probe/CBR, gộp
-hay không quyết ở P5. Xem CLAUDE.md "Three simulation tiers".
+P4 kế tiếp (cần duyệt): áp normalization đóng băng lên `data/train`, kiểm
+VIF, chia 30/5 theo seed. P5 sau đó làm theo thứ tự mới trong PLAN.md:
+**PCA trước, fit sau, rồi thang hiệu chỉnh attenuation.**
 
 ## Đã hoàn thành
 
@@ -35,124 +26,118 @@ hay không quyết ở P5. Xem CLAUDE.md "Three simulation tiers".
 - **P1 — config đóng băng**: `txPowerDbm = 19`, `minRssiDbm = -101` →
   degree **6.14**, cô lập 0.6%, R(0.5) = 625 m (kiểm chứng hình học độc lập
   ~6.0). Độ cao quasi-tĩnh: chấp nhận và khai báo (dọc góp 0.7%).
-- **P2 — tài liệu**: PLAN.md P2 viết lại (bốn loại phát); CLAUDE.md thêm
-  "Three simulation tiers" + **"sampling constraint / dual control"** — Tier 3
-  lấy RSSI từ HELLO nên tốc độ lấy mẫu là 1/H, SE(slope) ∝ √H, H vừa điều
-  tiết vừa thăm dò (Feldbaum); P7 phải đo suy giảm slope bằng lấy mẫu thưa
-  dữ liệu beacon 10 Hz (không cần mô phỏng thêm); P8e sửa lập luận cũ.
-- **P2 — code**: `scratch/linkscore/link-dataset-fanet.cc` (kế thừa nguyên ba
-  cách đo P0; xoay bucket cưỡng chế ghi dòng tại t+τ; ARP tĩnh; assert PSDU
-  probe==CBR đo trên sóng: 576=576; guard qdisc), `scripts/check_gates.py`
-  (ngưỡng đọc từ conf, exit 1 khi trượt, bảng airtime tách nguồn),
-  `fanet-tier2.conf` khối harness mới (labelWin 4, beacon 0.1 s, probeBytes
-  540, key CBR/warmup/MaxDelay).
-- **P2 — smoke seed 1, run 1** (SHA `ba27233c5`, L=7): 14 273 dòng — bão hoà
-  do probe, chẩn đoán trong `reports/P2-harness.md`.
-- **P2 — `FrameRetryLimit = 2`** (tài liệu + conf + code, SHA `64eacc733` /
-  `af306952b`) và **smoke run 2** cùng seed: 19 752 dòng.
-- **P2 — probe 1 Hz + smoke run 3** (SHA `076b439bf` / `f2d7c5d02`): 21 427
-  dòng, tải vào vùng, 5/6 cổng. check_gates mở rộng: phân bố trials,
-  fails_slipped, q theo bin tách probe/CBR. Ba run giữ song song:
-  `data/smoke/p2-harness/seed-1{,-retry2,-probe1hz}/`.
-- **Phát hiện cho Motivation: q_cbr ≥ q_probe** — mục riêng trong báo cáo.
-  Run 3: 0.841 so 0.776, hiệu nới ra khi route tăng 48%→70%; min-hop dồn
-  72.4% trials on-path vào 400–800 m (mép waterfall); cùng bin 200–400 m thì
-  on-path fail gấp 2.3× off-path (tự tranh chấp dọc tuyến). PLAN.md P6 đã
-  thêm min-hop làm baseline regret thứ ba (`458a59920`).
+- **P2 — thiết kế + harness + dataset đóng** (chi tiết:
+  `reports/P2-harness.md`, `reports/P2-batch.md`): Tier 2 = OLSR chuẩn
+  (chỉ tạo tải) + CBR đa chặng + beacon L2 10 Hz (nguồn duy nhất RSSI) +
+  probe L2 mỗi-neighbor; nhãn per-attempt tách cột probe/CBR;
+  `FrameRetryLimit = 2` toàn hệ thống. **35/35 seed PASS cả 7 cổng:
+  `data/calib/` = seeds 1–5 (105 869 dòng), `data/train/` = seeds 6–35
+  (652 432 dòng), tổng 758 301 dòng.** Binary + config digest đồng nhất
+  cả 35 manifest (calib chạy ở git `2e3e45828`, train ở `c90310d86` — hai
+  commit chỉ khác tài liệu; xem Bất thường của P3-calibration.md).
+  Ba phân tích tiền-P5: (1) `rssi_n` 38 → 4 theo bin → SE(slope) ~0.22 →
+  ~1.2 dB/s — attenuation bias mạnh nhất ở link biên; (2) SD
+  liên-link/trong-link 0.39–0.68 mọi bin — mean RSSI không phân biệt link
+  cùng bin; (3) corr(level, retry) = −0.793, level~slope = 0.000.
+- **P3 — hiệu chuẩn ngưỡng, đóng băng** (`reports/P3-calibration.md`):
+  `frozen/normalization.json` (bất biến; provenance + per-seed stability
+  trong file); `analysis/features/p3_normalization.py` (từ chối ghi đè
+  frozen, từ chối "eval", đòi manifest sạch đồng nhất); `gateNearQMax`
+  0.35 → 0.38; PLAN.md P5 nhận ba mục: Bước 0 PCA, "β_RSSI mã hoá khoảng
+  cách theo cấu tạo kênh" (Results, không phải Limitations), thang
+  attenuation 3 bước (**hiệu chỉnh, không lọc** — chỉ dẫn cũ "fit riêng
+  `rssi_n ≥ 20`" đã gỡ); CLAUDE.md nhận đoạn cấu tạo kênh (quy tắc 11) và
+  lệnh cấm lọc theo `rssi_n` (mục Acceptance gate, cạnh lệnh cấm lọc theo
+  trials).
 
 ## Đang vướng
 
-**Chờ duyệt sang P3.** Một việc để ngỏ có chủ ý: hiệu chuẩn lại
-`gateNearQMax = 0.35` nay đã có phân bố 35 điểm (mean 0.281, SD 0.022, max
-0.326 — ngưỡng hiện tại nằm đúng mép mean+3SD; SD toàn tập gấp 3× SD calib
-nên biên mỏng hơn calib gợi ý). Đổi ngưỡng ảnh hưởng các batch sau nên để
-anh/chị quyết cùng lúc duyệt P3.
-
-P3 nhận ba cảnh báo từ P2 (cuối `reports/P2-batch.md`): p20 tựa sàn detect
-(báo thêm p5/p95 khi so hai bản chuẩn hoá); dải p80−p20 chỉ ~3.8 dB; đuôi
-phân bố slope một phần là nhiễu đo của link xa.
+**Chờ duyệt sang P4.** Không có việc để ngỏ trong phạm vi P3.
 
 ## Quyết định đã chốt
 
 - **Ba tầng mô phỏng** (CLAUDE.md): Tier 1 kiểm chứng / Tier 2 thu dữ liệu
   (OLSR-tải + CBR + beacon + probe) / Tier 3 đánh giá (không beacon, không
   probe). Kết quả không bao giờ vượt tầng.
-- **`FrameRetryLimit = 2` toàn hệ thống** (= dot11ShortRetryLimit; áp cả
-  Tier 2 lẫn Tier 3, vào bảng Simulation Setup): chuỗi retry tương quan làm
-  GLM khai quá thông tin ~√5 ở L=7, chặn ở ~√2; retry dai dẳng phản tác dụng
-  ở tốc độ FANET. Đo được: khuếch đại 5.37 → 1.76.
-- **`retry_rate` là NHÃN TRỄ** (cùng đại lượng với `pdr_future`, lệch τ) —
-  câu hỏi P5 là "RSSI + slope có vượt AR baseline không"; bảng đối chứng P5
-  đã thêm chỉ-retry và chỉ-RSSI+slope.
+- **`frozen/normalization.json` bất biến**; bộ triển khai là (p20, p80),
+  (p5, p95) chỉ cho phép so của P5 — không phải bộ triển khai thứ hai.
+  `retry_rate` không percentile: [0,1] vật lý, `s_mac = 1 − clip(retry)`.
+- **`gateNearQMax` = 0.38** (= mean-calib + 5 SD-toàn-tập = mean-35-seed
+  + ~4.5 SD, cách max quan sát 0.326 ~2.4 SD). Vai trò: cổng SỨC KHOẺ VẬN
+  HÀNH — cùng chế độ tranh chấp với batch đã duyệt — không phải cổng chất
+  lượng dữ liệu (vai trò đó thuộc degree); vẫn đọc liên hợp với degree.
+  Hệ quả khai trước: `config_sha256` của batch eval (P10) sẽ khác batch
+  train vì đổi hằng số cổng — khác biệt chỉ ở phía phân tích (`gate*` là
+  "của Python", trơ với binary), không phải lệch provenance.
+- **P5 mở màn bằng phân tích chiều (PCA)** trên ba feature z-score, toàn
+  tập 35 seed, trước mọi GLM; >95% phương sai ở 2 thành phần đầu = công
+  thức thừa một số hạng, phải nói thẳng trong paper.
+- **`rssi_level` không mang tin vượt khoảng cách THEO CẤU TẠO KÊNH**
+  (LogDistance + Nakagami, không shadowing per-link → E[RSSI] = f(d) tất
+  định). Vào **Results**, không phải Limitations: giá trị vượt-hình-học
+  nằm ở slope + retry; β_RSSI đáng kể = mã hoá khoảng cách, nói thẳng.
+  Future Work: shadowing log-normal per-link (không làm trong paper này).
+- **Attenuation của β_slope xử lý bằng hiệu chỉnh, không lọc**: fit thô →
+  fit phân tầng theo `rssi_n` (β_slope tăng đơn điệu theo n = bằng chứng
+  trực tiếp) → reliability-ratio với phương sai nhiễu ĐÃ BIẾT (SE(slope)
+  dạng đóng từ `rssi_n` + σ tier Nakagami), báo cả β quan sát lẫn β hiệu
+  chỉnh. Đường β_slope theo `rssi_n` dùng lại cho P7 (dual control,
+  n = Δ/H). KHÔNG lọc `rssi_n ≥ 20` — kiểm duyệt link biên.
+- **`FrameRetryLimit = 2` toàn hệ thống** (Tier 2 lẫn Tier 3, vào bảng
+  Simulation Setup): chuỗi retry tương quan làm GLM khai quá thông tin
+  ~√5 ở L=7, chặn ở ~√2; đo được khuếch đại 5.37 → 1.76.
+- **`retry_rate` là NHÃN TRỄ** — câu hỏi P5 là "RSSI + slope có vượt AR
+  baseline không"; bảng đối chứng P5 có chỉ-retry và chỉ-RSSI+slope.
 - **Tiêu chí tải Tier 2: TỔNG airtime mọi nguồn 50–70% toàn mạng**
-  (~20–28%/miền), không dùng tỉ số đo-lường/ứng-dụng. Limitations: probe rải
-  đều, CBR dồn dọc tuyến — mẫu hình tranh chấp không gian khác Tier 3.
-- **Nhãn tách cột `trials_probe/fails_probe` và `trials_cbr/fails_cbr`** —
-  link on-path có n gấp ~10× và tự tranh chấp không nằm trong feature; gộp
-  hay không là quyết định của P5 (fit ba bản, so β), không phải của P2.
-- **RSSI chỉ từ beacon** (mật độ mẫu đồng đều, không tương quan routing;
-  khớp Tier 3 nơi RSSI đi trên broadcast HELLO).
-- **Fail quy lớp theo attempt gần nhất cùng địa chỉ** (MacTxDataFailed chỉ có
-  địa chỉ; MAC non-QoS serial hoá nên phép quy chính xác; sai biên đếm ở
-  `fails_slipped`).
-- **ARP tĩnh, khai báo trong paper** — ARP reply lọt tử số mà không vào mẫu
-  số lọc size, thổi phồng fails một chiều.
-- **Gỡ root qdisc TrafficControl** (ns-3.45 tự cài FqCoDel khi gán địa chỉ):
-  không gỡ thì CBR đệm hai tầng còn probe L2 một tầng. Guard NS_FATAL giữ
-  trong code.
-- **Ba cách đo của P0 dùng lại y hệt**; per-attempt, không post-ARQ;
-  `--fail-on-dirty` cho mọi run có số.
+  (~20–28%/miền). Limitations: probe rải đều, CBR dồn dọc tuyến.
+- **Nhãn tách cột probe/CBR**; gộp hay không quyết ở P5 (fit ba bản).
+- **RSSI chỉ từ beacon**; fail quy lớp theo attempt gần nhất cùng địa
+  chỉ; ARP tĩnh; gỡ root qdisc TrafficControl; ba cách đo P0 dùng lại y
+  hệt; per-attempt, không post-ARQ; `--fail-on-dirty` mọi run có số.
 
 ## Sự thật đã đo, ghi để khỏi suy lại
 
-- **`MaxSsrc`/`MaxSlrc` là OBSOLETE từ ns-3.44** — knob còn hoạt động là
-  `WifiMac::FrameRetryLimit`, nghĩa "số ATTEMPT tối đa mỗi frame" (drop khi
-  retry count chạm limit, min 1). L=2 → E[attempts] = 1 + q; đo 1.76 tại
-  q = 0.814, khớp.
-- **Phản hồi dương admission ↔ độ thoáng kênh**: kênh thoáng hơn → beacon
-  decode nhiều hơn → TTL admit thêm neighbor (9.0 → 11.5, trần loose ~14) →
-  probe gửi tăng 28%. Mọi dự đoán tải probe phải tính hệ số này.
-- **q_cbr ≥ q_probe, và hiệu nới ra khi OLSR có nhiều route hơn** (run 2 →
-  run 3: +0.009 → +0.065 khi route 48% → 70%) — càng được định tuyến nhiều,
-  link trên đường càng tệ. Hai cơ chế tách được bằng bin: placement (72.4%
-  trials on-path ở 400–800 m) + excess cùng-bin (×2.3 ở 200–400 m, tự tranh
-  chấp dọc tuyến). CBR không tự động "sạch" hơn probe.
-- **Aggregate MAC loss là trung bình theo trọng số vị-trí-đặt-probe**, không
-  phải chỉ báo sức khoẻ kênh: 78.3% ở kênh khoẻ (run 3) vì 53.5% trials ở
-  ≥600 m nơi q do vật lý là 0.91–0.99. Chỉ báo sập thật là q vùng gần
-  (< 0.64·R½): run 3 = 0.265 ✓, run 2 = 0.343 (lọt sát dưới 0.35 — run 2 bị
-  cổng degree chặn thay), run 1 = 0.680 ✗. Số gộp probe+CBR, khác số
-  probe-only (0.216/0.33) từng trích trước đó.
-- **Đường CBR: trung bình 2.15 hop, 71.3% flow-giây có route là ≥2 hop,
-  route availability 70.3% (bảng định tuyến) = 70.1% (app)** — tiền đề CBR
-  đa chặng đứng vững. Lệch 9× giữa end-to-end 21.3% và dự đoán 3-hop 2.4%
-  phân rã = ×5.0 (hop-mix thật) × 1.69 (q̄ trọng số theo attempt bị link xấu
-  kéo lên — Jensen). Đo hop chỉ-đọc không đổi mô phỏng: rows.csv trùng md5.
-- **q̄ per-attempt là trung bình trọng số theo attempt, không phải theo gói**
-  — link xấu sinh nhiều attempt nên kéo q̄ lên; mọi suy diễn end-to-end từ q̄
-  phải nhớ điều này.
-- **MaxDelay 100 ms trơ hoàn toàn khi hết bão hoà**: run 2 expired 0, tràn 0,
-  p50 1.8 ms / p99 4.7 ms (run 1 bão hoà: p99 85 ms, expired 0.38%).
-- **ns-3.45 tự cài root qdisc (FqCoDel) lên WifiNetDevice khi gán địa chỉ
-  IP.** Không tin tài liệu cũ nói "không còn default qdisc".
-- **Trace `Tx` của OnOffApplication chỉ bắn khi `Send` thành công** — với
-  UDP + OLSR, gói không có route không được đếm. `cbr_app_tx` là "đã rời
-  node", không phải "theo lịch".
-- **Ước lượng airtime probe phải nhân hai hệ số**: tập admission theo TTL
-  lỏng (~9 neighbor ở TTL 2 s, không phải degree chặt 6.14) và khuếch đại
-  ARQ (~×5.4 khi trong tập có link chết). Thiếu cả hai → sai 7.8×.
-- **corr(retry, rssi) âm sâu (−0.86) NGAY TRONG bão hoà** — gánh retry dồn
-  lên link yếu nên corr một mình không chẩn đoán được bão hoà; phải nhìn
-  bảng airtime tách nguồn.
-- **MaxDelay 100 ms không phải thủ phạm bão hoà**: queue expired 0.38%,
-  tràn 0, p50 13 ms. Airtime đốt trên sóng (retry), không phải backlog.
-- Degree đo trong bão hoà (1.79) là con số về kênh, không phải về hình học —
-  positions cùng phân bố với P1.
-- Phân bố nhãn ở điểm này KHÔNG bị ceiling: ghim-1.0 chỉ 2.6%, 75.2% dòng ở
-  0 < pdr < 1, median trials 39.
+- **Percentile đóng băng** (105 869 dòng calib): level p5/p20/p80/p95 =
+  −89.20/−88.61/−84.78/−79.90 dBm (dải p80−p20 = 3.84 dB); slope =
+  −0.848/−0.379/+0.376/+0.845 dB/s (gần đối xứng — dải bất đối xứng nếu
+  muốn là quyết định thiết kế, không phải percentile). SD per-seed: p20
+  level 0.022 dB (ghim sàn detect −90 dBm, cách 1.4 dB) so p80 0.162 dB
+  (topology quyết định). Bản p5/p95 chỉ mở dải VỀ PHÍA TRÊN — phía dưới
+  không có mẫu (kiểm duyệt vật lý tại sàn).
+- **near-q 35 điểm**: mean 0.2811, SD 0.0221, min 0.2394, max 0.3263;
+  calib-5: mean 0.2658, SD 0.0078 (SD toàn tập gấp ~3× calib).
+- **Đuôi slope ±0.85 dB/s (p5/p95) so SE(slope) ~1.19 dB/s ở bin ≥800 m**
+  — đuôi phân bố slope có thành phần nhiễu đo lớn; dải p20/p80 không phụ
+  thuộc đuôi, bản p5/p95 thì có.
+- **`MaxSsrc`/`MaxSlrc` OBSOLETE từ ns-3.44** — knob là
+  `WifiMac::FrameRetryLimit`, nghĩa "số ATTEMPT tối đa mỗi frame"; L=2 →
+  E[attempts] = 1 + q; đo 1.76 tại q = 0.814, khớp.
+- **Phản hồi dương admission ↔ độ thoáng kênh**: kênh thoáng → beacon
+  decode nhiều → TTL admit thêm neighbor (9.0 → 11.5) → probe +28%.
+- **q_cbr ≥ q_probe, hiệu nới khi route tăng** (48% → 70%: +0.009 →
+  +0.065); min-hop dồn 72.4% trials on-path vào 400–800 m; cùng bin
+  200–400 m on-path fail ×2.3 (tự tranh chấp dọc tuyến).
+- **Aggregate MAC loss là trung bình theo trọng số vị-trí-đặt-probe**,
+  không phải chỉ báo sức khoẻ kênh (78.3% trên kênh khoẻ). Chỉ báo sập là
+  near-q + degree đọc liên hợp.
+- **Đường CBR: trung bình 2.15 hop, 71.3% flow-giây ≥2 hop, route
+  availability ~70–75% (trải 61.5–91.4% giữa seed)**.
+- **q̄ per-attempt là trung bình trọng số theo attempt** — link xấu sinh
+  nhiều attempt nên kéo q̄ lên.
+- **MaxDelay 100 ms trơ khi hết bão hoà** (expired 0, p99 4.7 ms); không
+  phải thủ phạm bão hoà run 1 (airtime đốt trên sóng, không backlog).
+- **ns-3.45 tự cài root qdisc FqCoDel lên WifiNetDevice khi gán địa chỉ
+  IP**; trace `Tx` của OnOffApplication chỉ bắn khi `Send` thành công.
+- **Ước lượng airtime probe phải nhân hai hệ số** (TTL lỏng ~9 neighbor +
+  ARQ ×5.4 khi có link chết); thiếu cả hai → sai 7.8×.
+- **corr(retry, rssi) âm sâu (−0.86) NGAY TRONG bão hoà** — corr một mình
+  không chẩn đoán bão hoà; nhìn bảng airtime tách nguồn.
+- Phân bố nhãn KHÔNG ceiling: ghim-1.0 2.6%, 75.2% dòng 0<pdr<1, median
+  trials 39 (smoke); batch: median trials 7, %dòng thiếu retry 0.65%.
 
 ## Chưa chạm
 
-`frozen/` (rỗng — `normalization.json` là việc của P3), `data/eval/` (RỖNG,
-cưỡng chế bằng `run_tests.sh` tới P10). Chưa fit gì, chưa hiệu chuẩn gì.
-Dataset P2 đã đóng: `data/calib/` (P3 dùng), `data/train/` (P4/P5 dùng).
+`frozen/weights.json` (việc của P5). `data/eval/` (RỖNG, cưỡng chế bằng
+`run_tests.sh` tới P10). Chưa fit gì, chưa PCA gì — P5 làm cả hai theo thứ
+tự mới. Dataset P2 đóng: `data/calib/` (P3 đã dùng xong), `data/train/`
+(P4/P5 dùng).
