@@ -7,24 +7,20 @@ Cập nhật lần cuối: 2026-07-27
 
 ## Phase hiện tại
 
-**P2 SẴN SÀNG BATCH — CHỜ DUYỆT. Cổng đã chốt (7 cổng, phương án b đã
-chỉnh): cổng bão hoà chính = q gộp trên link < 0.64·`rHalfM` ≤ 0.35
-(`rHalfM = 625` là key conf, không hardcode); `gateLossMax` 85 làm lưới SẬP
-KÊNH (đổi vai trò, không phải chỉ báo chất lượng dữ liệu); ngưỡng 0.35 hiệu
-chuẩn từ 2 điểm — xem lại sau batch đầu. Smoke chuẩn (`seed-1-hops`, = run 3
-byte-identical + đo hop) qua CẢ 7 CỔNG. Trials bỏ ngưỡng (GLM trọng số theo
-n; minTrials=2 là vệ sinh). Seed chốt 40 = 5/30/5, conf đã ghi 1-5 / 6-35 /
-36-40; ~2.9 phút/seed → batch 35 seed ≈ 1.7 h.**
+**P2 — BATCH CALIBRATION XONG, 5/5 SEED PASS CẢ 7 CỔNG. `data/calib/`
+= seeds 1–5, 105 869 dòng. ĐANG CHỜ DUYỆT để chạy seeds 6–35 →
+`data/train/` (`scripts/run_p2_batch.sh 6 35 data/train`, ~1.5 h; điều kiện
+dừng cài sẵn trong runner: ≥3 seed trượt bất kỳ cổng nào / abort / dirty →
+dừng). Seeds 36–40 KHÔNG sinh — `run_tests.sh` fail nếu `data/eval/` không
+rỗng (bất biến kiểm tra được, chạy trước mọi batch).**
 
-**Kế hoạch batch đề xuất (mục cuối `reports/P2-harness.md`): chạy seeds 1–35
-(calib → `data/calib/`, train → `data/train/`), manifest + check_gates từng
-seed, bảng cổng theo seed trước khi sang P3. MỘT CÂU HỎI CHỜ QUYẾT: sinh 5
-seed eval (36–40) ngay bây giờ hay để P10 — tôi nghiêng về để P10 (manifest
-ghim binary+config để tái lập; vùng cấm rỗng thì không chạm nhầm được).**
-
-Tiến trình bốn run (cùng seed 1): tổng airtime 238.9% → 105.6% → 60.9%;
-degree 1.79 → 3.82 → 4.97; route OLSR 19% → 48% → 70%; khuếch đại ARQ 5.37
-→ 1.76 → 1.71; run 4 = run 3 + đo hop, rows.csv trùng md5 (determinism ✓).
+Ổn định qua 5 seed (bảng đầy đủ ở mục cuối `reports/P2-harness.md`):
+near-q **0.266 ± 0.008** (ngưỡng 0.35 cách ~10 SD), degree **4.90 ± 0.09**
+(cổng 4.0 cách ~10 SD), **p20 rssi −88.61 ± 0.022 dB / p80 −84.78 ± 0.16 dB**
+— tiêu chí "SD < 0.5 dB thì 5-seed calibration đóng băng an toàn" đạt với
+biên 3–20×. Cảnh báo cho P3: p20 ổn định một phần vì TỰA VÀO SÀN detect hiệu
+dụng −90 dBm (đuôi dưới bị nén); dải chuẩn hoá p80−p20 chỉ ~3.8 dB — cân
+nhắc báo thêm p5/p95 khi so hai bản chuẩn hoá.
 
 Thiết kế Tier 2 đã đổi và đã ghi vào tài liệu TRƯỚC khi viết code: OLSR chuẩn
 (chỉ tạo tải, mù LinkScore) + CBR đa chặng + beacon L2 10 Hz (nguồn duy nhất
@@ -65,11 +61,9 @@ hay không quyết ở P5. Xem CLAUDE.md "Three simulation tiers".
 
 ## Đang vướng
 
-**Chờ duyệt batch** (kế hoạch ở trên) + một câu hỏi vận hành: sinh seed eval
-36–40 ngay hay để P10. Không còn vấn đề kỹ thuật mở nào — mâu thuẫn trials
-đã đóng (bỏ ngưỡng, CLAUDE.md/PLAN.md sửa), mâu thuẫn số seed đã đóng
-(40 = 5/30/5), lệch 9× của CBR end-to-end đã phân rã trọn (×5.0 hop-mix,
-×1.69 Jensen — không có bug đếm).
+**Chờ duyệt chạy seeds 6–35.** Câu hỏi eval-seed đã đóng: KHÔNG sinh 36–40,
+`data/eval/` rỗng là bất biến do `run_tests.sh` cưỡng chế tới P10. Không còn
+vấn đề kỹ thuật mở nào.
 
 ## Quyết định đã chốt
 
@@ -152,5 +146,6 @@ hay không quyết ở P5. Xem CLAUDE.md "Three simulation tiers".
 
 ## Chưa chạm
 
-`frozen/` (rỗng), `data/{calib,train,eval}/` (rỗng). `data/eval/` cấm tới
-P10. Chưa fit gì, chưa hiệu chuẩn gì (P3/P5 chưa bắt đầu).
+`frozen/` (rỗng), `data/train/` (rỗng — chờ duyệt seeds 6–35), `data/eval/`
+(RỖNG, cưỡng chế bằng `run_tests.sh` tới P10). Chưa fit gì, chưa hiệu chuẩn
+gì (P3/P5 chưa bắt đầu). `data/calib/` = seeds 1–5 đã có, dùng cho P3.

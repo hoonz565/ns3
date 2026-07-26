@@ -485,3 +485,62 @@ Mọi thứ đã chốt: cổng (7/7 trên smoke chuẩn), tham số (conf), ph�
   đã ghim hash trong manifest (tái lập kiểm chứng được), đổi lại phải giữ
   binary không trôi. Tôi nghiêng về **để P10** — manifest tồn tại chính để
   bảo đảm điều đó, và vùng cấm rỗng thì không ai chạm nhầm được.
+
+---
+
+# Batch calibration — seeds 1–5 → `data/calib/` (2026-07-27)
+
+Git SHA `2e3e45828` | runner `scripts/run_p2_batch.sh` (manifest
+`--fail-on-dirty` → sim → check_gates từng seed; `run_tests.sh` chạy trước
+seed đầu) | cây sạch suốt batch, 0 abort, 0 dirty.
+
+## Kết quả: 5/5 seed PASS cả 7 cổng
+
+| seed | rows | near-q | degree | loss % | amp | p20 (dBm) | p80 (dBm) | route % |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 21 427 | 0.265 | 4.97 | 78.3 | 1.71 | −88.6 | −85.0 | 70.3 |
+| 2 | 21 259 | 0.276 | 4.80 | 78.9 | 1.71 | −88.6 | −84.8 | 71.8 |
+| 3 | 20 793 | 0.256 | 4.85 | 78.3 | 1.71 | −88.6 | −84.7 | 75.9 |
+| 4 | 20 913 | 0.271 | 5.02 | 77.0 | 1.69 | −88.6 | −84.5 | 74.5 |
+| 5 | 21 477 | 0.261 | 4.84 | 79.1 | 1.72 | −88.6 | −84.9 | 76.7 |
+
+Tổng: **105 869 dòng** / 5 seed.
+
+## Ba con số ổn định được yêu cầu
+
+| Đại lượng | mean ± SD | Đối chiếu |
+|---|---|---|
+| **near-q** | **0.266 ± 0.008** | ngưỡng 0.35 cách ~10.5 SD — trong 35 seed sẽ không có seed nào chạm tới bằng dao động thống kê; nếu có seed chạm thì đó là chế độ khác, không phải đuôi phân bố |
+| **degree** | **4.90 ± 0.09** | cổng 4.0 cách ~9.6 SD |
+| **p20 `rssi_level`** (riêng từng seed) | **−88.61 ± 0.022 dB** | tiêu chí SD < 0.5 dB: đạt với biên ~20× |
+| **p80 `rssi_level`** (riêng từng seed) | **−84.78 ± 0.16 dB** | đạt với biên ~3× |
+
+**Kết luận cho quyết định "5 seed calibration": đóng băng an toàn** — cả hai
+percentile đều có SD dưới 0.5 dB rất xa.
+
+**Một quan sát P3 phải biết trước khi tính `normalization.json`:** p20 ổn
+định *một phần vì nó tựa vào sàn*. p20 = −88.6 dBm nằm sát sàn detect hiệu
+dụng −90 dBm (Threshold 4 dB SNR trên nền nhiễu ~−94), nên đuôi dưới của
+phân bố RSSI bị nén và p20 gần như là hằng số vật lý của máy thu chứ không
+chỉ là tính chất của kịch bản. Hệ quả: dải chuẩn hoá p80 − p20 ≈ 3.8 dB khá
+hẹp; s_rssi sẽ nhạy với mẫu vùng −89…−85 dBm. Không phải lỗi — chính là điều
+CLAUDE.md nói về kiểm duyệt sàn (rule 5 / P1 phát hiện 1) — nhưng P3 nên cân
+nhắc báo thêm p5/p95 khi so hai bản chuẩn hoá.
+
+Số phụ nhất quán qua 5 seed: mac loss 78.3 ± 0.8 % (lưới 85), khuếch đại ARQ
+1.709 ± 0.010, route availability 73.8 ± 2.7 %.
+
+## Bất biến mới kiểm tra được
+
+- `scripts/run_tests.sh`: ranh giới features/labels (AST) + **`data/eval/`
+  phải RỖNG tới P10** — chạy trước seed đầu của mọi batch. Seeds 36–40 chưa
+  hề được sinh, đúng chỉ định.
+- Conf ghi rõ: **hệ thống cổng là liên hợp** — near-q một mình không tách
+  được bão hoà nhẹ (run 2: 0.343 lọt sát dưới 0.35, bị cổng degree bắt thay);
+  hiệu chuẩn lại 0.35 chỉ sau khi có phân bố 35 seed.
+
+## Trạng thái
+
+**DỪNG theo chỉ định — chờ duyệt rồi mới chạy seeds 6–35 → `data/train/`**
+(runner sẵn: `scripts/run_p2_batch.sh 6 35 data/train`, ~1.5 h, điều kiện
+dừng đã cài trong runner: ≥3 seed trượt bất kỳ cổng nào / abort / dirty).
