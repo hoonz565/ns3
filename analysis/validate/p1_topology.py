@@ -137,6 +137,74 @@ def range_from_ratio(nb: pd.DataFrame, threshold: float, bin_m: float = 25.0) ->
     }
 
 
+def vertical_share(nb: pd.DataFrame, pos: pd.DataFrame, threshold: float, window: float) -> dict:
+    """Vận động dọc đóng góp bao nhiêu vào việc link đổi trạng thái.
+
+    Với mỗi lần link i→j đổi trạng thái (vượt lên hoặc tụt xuống ngưỡng), lấy
+    `window` giây trước đó và tách thay đổi khoảng cách thành hai phần:
+
+        Δz  = |dz(t) − dz(t−W)|        dz  = |z_i − z_j|,  ly cách dọc
+        Δxy = |dxy(t) − dxy(t−W)|      dxy = ly cách ngang
+
+        vertical_share = Δz / (Δz + Δxy)
+
+    Con số này thay cho phát biểu định tính "độ cao gần như đóng băng": nó nói
+    thẳng bao nhiêu phần của biến động topology đến từ chiều dọc.
+
+    Báo thêm phép tách theo **chiếu**, vì cái quyết định RSSI là thay đổi của
+    khoảng cách 3D chứ không phải của từng ly cách:
+
+        Δd ≈ (dz/d)·Δdz + (dxy/d)·Δdxy
+
+    Ở ly cách ngang lớn hơn nhiều thì dz/d nhỏ, nên đóng góp thật của chiều dọc
+    vào Δd còn nhỏ hơn tỉ số thô ở trên.
+    """
+    nb = nb.copy()
+    nb["ratio"] = nb["recv"] / nb["sent"]
+    nb["up"] = nb["ratio"] >= threshold
+    nb = nb.sort_values(["src", "dst", "t_s"])
+    prev = nb.groupby(["src", "dst"])["up"].shift(1)
+    changes = nb[(prev.notna()) & (nb["up"] != prev)][["t_s", "src", "dst"]]
+    if changes.empty:
+        return {"n_changes": 0}
+
+    # positions.csv lấy mẫu thưa hơn neighbors.csv -> bắt về lưới vị trí.
+    grid = np.sort(pos["t_s"].unique())
+    pos_at = {t: frame.sort_values("node")[["x", "y", "z"]].to_numpy() for t, frame in pos.groupby("t_s")}
+
+    raw, projected = [], []
+    for t, i, j in changes.itertuples(index=False):
+        t1 = grid[grid <= t]
+        if len(t1) == 0:
+            continue
+        t1 = t1[-1]
+        t0 = t1 - window
+        if t0 not in pos_at or t1 not in pos_at:
+            continue
+        p0, p1 = pos_at[t0], pos_at[t1]
+        dz0, dz1 = abs(p0[i, 2] - p0[j, 2]), abs(p1[i, 2] - p1[j, 2])
+        dxy0 = math.hypot(p0[i, 0] - p0[j, 0], p0[i, 1] - p0[j, 1])
+        dxy1 = math.hypot(p1[i, 0] - p1[j, 0], p1[i, 1] - p1[j, 1])
+        d_z, d_xy = abs(dz1 - dz0), abs(dxy1 - dxy0)
+        if d_z + d_xy > 0:
+            raw.append(d_z / (d_z + d_xy))
+        d1 = math.hypot(dxy1, dz1)
+        if d1 > 0:
+            cz, cxy = (dz1 / d1) * d_z, (dxy1 / d1) * d_xy
+            if cz + cxy > 0:
+                projected.append(cz / (cz + cxy))
+
+    return {
+        "n_changes": int(len(changes)),
+        "n_used": len(raw),
+        "window_s": window,
+        "median_raw": float(np.median(raw)) if raw else float("nan"),
+        "p25_raw": float(np.percentile(raw, 25)) if raw else float("nan"),
+        "p75_raw": float(np.percentile(raw, 75)) if raw else float("nan"),
+        "median_projected": float(np.median(projected)) if projected else float("nan"),
+    }
+
+
 def degree_vs_range(pos: pd.DataFrame, n_nodes: int, radii) -> pd.DataFrame:
     """Degree kỳ vọng nếu tầm phủ là R, tính từ phân bố khoảng cách THẬT.
 
@@ -350,6 +418,13 @@ def main(argv=None) -> int:
     print(f"\n  z-span mỗi node: mean {zs['mean']:.0f} m, median {zs['median']:.0f} m, "
           f"min {zs['min']:.0f}, max {zs['max']:.0f}  (cả dải {zs['full_range_m']:.0f} m)")
     print(f"  tỉ lệ node quét dưới nửa dải cao: {zs['frac_span_below_half']:.1%}")
+
+    vs = vertical_share(nb, pos, threshold, float(meta["neighbor_window_s"]))
+    print(f"\n  Đóng góp của vận động dọc vào việc link đổi trạng thái "
+          f"({vs['n_used']}/{vs['n_changes']} lần đổi, cửa sổ {vs['window_s']:.0f} s):")
+    print(f"    Δz / (Δz + Δxy)              trung vị {vs['median_raw']:.3f}   "
+          f"IQR [{vs['p25_raw']:.3f}, {vs['p75_raw']:.3f}]")
+    print(f"    theo chiếu lên khoảng cách 3D  trung vị {vs['median_projected']:.3f}")
     worst = max(a["boundary_ratio"] for a in posum["axes"].values())
     ok_bound = worst <= GATE_BOUNDARY_RATIO
     print(f"  [{'ĐẠT' if ok_bound else 'KHÔNG ĐẠT'}] mật độ lớp biên ≤ "
@@ -389,6 +464,7 @@ def main(argv=None) -> int:
             "degree": deg,
             "range": {k: v for k, v in rng.items() if k != "curve"},
             "positions": posum,
+            "vertical_share": vs,
             "degree_vs_range": dvr.to_dict("records"),
             "recommendation": {
                 "r_now_m": r_now,
