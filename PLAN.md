@@ -94,7 +94,9 @@ Nếu dataset huấn luyện tính RSSI bằng trung bình cửa sổ mà node t
 | | TimeStep | 0.5 s | |
 | PHY | Chuẩn | 802.11a, 5.18 GHz | |
 | | Rate manager | `ConstantRateWifiManager`, 6 Mbps | Rate adaptation che mất tín hiệu cần đo |
-| | TxPower | 10 dBm | Cho tầm phủ ≈ 500 m |
+| | **TxPower** | **17 dBm** | **Đo được** d(PDR 0.5) = 501 m ở P0, không phải suy ra. 10 dBm cho 107 m với sàn detect mặc định của ns-3 — dòng "10 dBm ≈ 500 m" trước đây dùng ngưỡng −96 dBm không tồn tại |
+| | **`MinimumRssi`** | **−101 dBm** | `ThresholdPreambleDetectionModel` mặc định −82 dBm là **sàn cứng trên RSSI**, cao hơn giới hạn do nhiễu 7 dB. Hạ về −101 thì ràng buộc chuyển sang `Threshold` (4 dB SNR → sàn hiệu dụng −90 dBm), tức dựa trên vật lý. **Khai báo trong paper** |
+| | `WifiMacQueue::MaxDelay` | 100 ms (interface probe) | Giãn nhịp probe không chặn được backlog: 10 ms → retry_rate 0.9478, 50 ms → 0.9475. Chặn bằng thời gian sống của gói |
 | | Path loss exponent | 2.2 | Đo đạc A2A ≈ free-space |
 | | **Nakagami m₀/m₁/m₂** | **8 / 5 / 3** | LoS trên không; 0.75 là kênh đô thị |
 | | **Distance1 / Distance2** | **100 m / 300 m** | Mặc định 80/200 m là thang mặt đất |

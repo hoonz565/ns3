@@ -69,6 +69,37 @@ per-frame logistic regression with zero information loss, and far cheaper.
 Do **not** threshold links into good/bad at some PDR τ. That discards the
 difference between 0.72 and 0.94 and invents a hyperparameter to defend.
 
+**The trial is one MAC attempt, not one frame.** Fixed in P0, measured:
+
+    trials_future = number of data PPDUs on air        (MonitorSnifferTx)
+    fails_future  = number of MacTxDataFailed events   (MAC trace)
+    pdr_future    = 1 - fails_future / trials_future
+
+Both counters at the MAC layer, never from `Send()` calls. Two consequences,
+both wanted: a retransmission is a new trial, and a frame dropped in the queue
+is no trial at all — queue occupancy is a property of the *node*, not of the
+link, so it must not enter a link label.
+
+Do **not** use post-ARQ delivery (`1 - final_fails/first_attempts`). With 7
+retries the miss probability is (1-p)⁷, so that label reads exactly 1.000 while
+the true per-attempt quality has already fallen to 0.556 — it manufactures the
+"`pdr_future` piled at 1.0" ceiling this file warns about. Measured in P0 at
+17 dBm: per-attempt 0.556 at 400 m against post-ARQ 1.000. It is also not
+robustly countable — `first_attempts = attempts - retries` goes *negative* in
+the dead region, because per-frame accounting needs each MPDU tracked from
+first attempt to resolution and cannot be recovered from cumulative counters.
+
+Per-attempt delivery is also **the quantity ETX measures** (ETX = 1/(d_f·d_r)
+over one-attempt probabilities), which makes the comparison against ETX in the
+paper natural rather than forced.
+
+**Limitation to declare: attempts within one frame are not independent.** Seven
+retries happen within milliseconds under near-identical channel conditions, so
+`n = trials_future` overstates the information content and the binomial GLM
+reports optimistic standard errors. At the boundary E[attempts] ≈ 1/p ≈ 2, so
+the SE is understated by roughly √2. Not fatal, but it is one more reason the
+cluster-robust SE of rule 6 is mandatory, not optional.
+
 ### 4. Do not constrain a+b+c=1 during the fit
 In a logistic model the magnitude of β sets the slope of the sigmoid; the data
 determines it. Forcing the sum constrains the slope and the intercept cannot
@@ -166,6 +197,25 @@ dropped for want of a route (restoring the censoring).
 Give probe frames the **same size as data frames**. A 64 B probe has a very
 different airtime and collision probability than a 512 B data frame; mixing
 sizes in one retry denominator corrupts the feature.
+
+**Set `WifiMacQueue::MaxDelay` ≈ 100 ms on the probe interface.** Pacing the
+probe does *not* stop queue backlog — measured in P0, a 10 ms interval gives an
+overall retry_rate of 0.9478 and a 50 ms interval gives 0.9475, because once the
+link is dead the probes keep queueing whatever the rate, and the dead region
+then dominates the metric. What bounds the backlog is packet lifetime: past
+`MaxDelay` the packet is discarded instead of transmitted late, so attempts stop
+shortly after the link dies rather than continuing for tens of seconds. And
+because a queue-dropped packet is never an attempt, it leaves both the numerator
+and the denominator of the label (rule 3) — the artifact disappears from the
+data even while it still happens.
+
+**Probe while the beacon is still heard, not while unicast still succeeds.**
+The "recently heard" condition solves coverage, which is a different problem
+from backlog, and it has a trap: cutting the probe off when unicast stops
+working removes exactly the very-bad-link tail that anchors the bottom of the
+sigmoid. Beacons are broadcast and need no ARQ, so they outlive unicast
+delivery — key the probe off beacon reception and let `MaxDelay` handle the
+backlog. Two mechanisms, two purposes.
 
 The probe belongs to instrumentation only and never to the deployed
 controller. Its overhead does not count against paper results because it does
@@ -295,7 +345,8 @@ bite you** (see the Nakagami note below).
 | **MeanPitch** | **Uniform[−0.05, +0.05]** | The widely copied ns-3 template sets `Min=Max=0.05`, so every UAV climbs forever and pins to the ceiling. Bug. |
 | NormalVelocity | Normal[0, var 2.0, bound 4.0] | Template sets var=0, i.e. no speed variation |
 | Standard | 802.11a, 5.18 GHz, `ConstantRateWifiManager` 6 Mbps | |
-| TxPower | 10 dBm | Gives ~500 m range with exponent 2.2 |
+| **TxPower** | **17 dBm** | **Measured** d(PDR 0.5) = 501 m in P0, not derived. 10 dBm gives 107 m at the ns-3 default detection floor — the old "10 dBm ≈ 500 m" line assumed a −96 dBm threshold that does not exist. |
+| **`MinimumRssi`** | **−101 dBm** | `ThresholdPreambleDetectionModel` defaults to **−82 dBm**, a hard RSSI floor: a frame below it is never detected whatever its SNR, and it sits 7 dB above the noise-limited sensitivity. At −101 the binding constraint becomes `Threshold` (4 dB SNR → effective floor −90 dBm), i.e. physics rather than a constant. **Declare in the paper.** |
 | Path loss exponent | 2.2 | Measurements put A2A near free-space |
 | **Nakagami m₀/m₁/m₂** | **8 / 5 / 3** | LoS-dominated aloft. The ns-3 default of 1.5/0.75/0.75 is an urban ground channel — m<1 is *worse than Rayleigh*. |
 | **Distance1 / Distance2** | **100 m / 300 m** | Defaults 80/200 m are a ground-scale threshold; with 500 m links every link falls in the far tier |
