@@ -109,6 +109,8 @@ KnownKeys()
         "gateMidMin",
         "gateLossMax",
         "gatePinnedMax",
+        "rHalfM",
+        "gateNearQMax",
         // --- Lo seed (Python doc)
         "seedsCalibration",
         "seedsTrain",

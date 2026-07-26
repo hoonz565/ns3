@@ -132,6 +132,11 @@ def main(argv=None) -> int:
     gate_mid_min = float(conf["gateMidMin"])
     gate_loss_max = float(conf["gateLossMax"])
     gate_pinned_max = float(conf["gatePinnedMax"])
+    # Cổng bão hoà chính (P2 run 3): q gộp trên link GẦN. Vùng gần suy từ
+    # R(0.5) đo được chứ không phải hằng số — ngưỡng 75% cũ sai chính vì nó
+    # là hằng số thừa kế từ cấu hình radio khác. 0.64·R½ = 400 m tại 625 m.
+    near_max_m = 0.64 * float(conf["rHalfM"])
+    gate_near_q_max = float(conf["gateNearQMax"])
 
     summary = json.loads(summary_path.read_text())
 
@@ -153,6 +158,8 @@ def main(argv=None) -> int:
     # — off-path (probe) so với on-path (CBR). Trả lời "link CBR đi qua có
     # tập trung ở bin xa không" (cơ chế min-hop chọn link dài).
     q_bin: dict[str, list[float]] = {}
+    near_trials = 0.0
+    near_fails = 0.0
     bin_edges = [0, 200, 400, 600, 800, float("inf")]
 
     def bin_name(dist: float) -> str:
@@ -174,6 +181,9 @@ def main(argv=None) -> int:
             qb[1] += float(row["fails_probe"])
             qb[2] += float(row["trials_cbr"])
             qb[3] += float(row["fails_cbr"])
+            if float(row["dist_m"]) < near_max_m:
+                near_trials += float(row["trials_future"])
+                near_fails += float(row["fails_future"])
             if float(row["fails_future"]) > 0:
                 n_fails_pos += 1
             if pdr >= 1.0:
@@ -209,13 +219,19 @@ def main(argv=None) -> int:
     pinned = pct(n_pinned_hi + n_pinned_lo)
 
     # ---------------- bảng cổng ----------------
+    near_q = near_fails / near_trials if near_trials else float("nan")
     gates = [
         ("degree trung bình", f">= {gate_degree_min}", f"{degree:.2f}", degree >= gate_degree_min),
         ("% dòng retry_rate > 0", f">= {gate_retry_min}%", f"{pct(n_retry_pos):.1f}%",
          pct(n_retry_pos) >= gate_retry_min),
         ("% dòng 0 < pdr < 1", f">= {gate_mid_min}%", f"{pct(n_mid):.1f}%",
          pct(n_mid) >= gate_mid_min),
-        ("MAC loss (per-attempt)", f"<= {gate_loss_max}%", f"{mac_loss:.1f}%",
+        # Cổng bão hoà chính: sập nâng q vùng gần, đuôi cố ý đo không đụng nó.
+        (f"q vùng gần (< {near_max_m:.0f} m)", f"<= {gate_near_q_max}", f"{near_q:.3f}",
+         near_q <= gate_near_q_max),
+        # Lưới sau — chỉ báo SẬP KÊNH, không phải chất lượng dữ liệu: harness
+        # không-kiểm-duyệt phải có loss tổng cao (78.3% ở kênh khoẻ).
+        ("MAC loss tổng (lưới sập)", f"<= {gate_loss_max}%", f"{mac_loss:.1f}%",
          mac_loss <= gate_loss_max),
         ("% dòng pdr ghim 0/1", f"<= {gate_pinned_max}%", f"{pinned:.1f}%",
          pinned <= gate_pinned_max),
@@ -316,6 +332,7 @@ def main(argv=None) -> int:
         "pinned_hi_pct": pct(n_pinned_hi),
         "pinned_lo_pct": pct(n_pinned_lo),
         "degree_vs_p1": {"measured": degree, "p1": P1_DEGREE_REF},
+        "near_q": {"value": near_q, "max_dist_m": near_max_m, "trials": near_trials},
         "corr_retry_rssi_pearson": pearson(corr_retry, corr_rssi),
         "corr_retry_rssi_spearman": spearman(corr_retry, corr_rssi),
         "all_pass": ok,
