@@ -1,0 +1,130 @@
+{
+  "artifact": "frozen/normalization.json",
+  "phase": "P3",
+  "created": "2026-07-27",
+  "frozen": true,
+  "source": {
+    "batch": "calibration",
+    "roots": [
+      "data/calib/seed-1",
+      "data/calib/seed-2",
+      "data/calib/seed-3",
+      "data/calib/seed-4",
+      "data/calib/seed-5"
+    ],
+    "seeds": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "n_rows": 105869,
+    "n_rows_missing_feature": 0,
+    "git_sha": "2e3e45828",
+    "config_sha256": "5e90070cdfd633e1c10a2c850a1d6a69fd1fbd5882e90f5f25fc3697943086b5",
+    "binary_sha256": "15198a5fc9a17648169d32b7ff558f52762d08f1192e21cecb32e730802e9465"
+  },
+  "method": "pooled rows across the 5 calibration seeds; percentile = linear interpolation between closest ranks at pos = q*(n-1) (R type-7, numpy default)",
+  "features": {
+    "rssi_level": {
+      "unit": "dBm",
+      "p5": -89.20402,
+      "p20": -88.6141,
+      "p80": -84.77835999999999,
+      "p95": -79.90093999999999
+    },
+    "rssi_slope": {
+      "unit": "dB/s",
+      "p5": -0.8484,
+      "p20": -0.3794,
+      "p80": 0.3761,
+      "p95": 0.8447599999999991
+    },
+    "retry_rate": {
+      "unit": "ratio",
+      "lo": 0.0,
+      "hi": 1.0,
+      "note": "physical bounds, NOT percentiles: retry_rate is a ratio in [0,1] by definition; deployment inverts direction, s_mac = 1 - clip(retry_rate, 0, 1)"
+    }
+  },
+  "deployment_formula": "s = clip((x - p20) / (p80 - p20), 0, 1); the FROZEN deployment pair is (p20, p80). (p5, p95) are recorded ONLY so P5 can compare the wider-clip variant (PLAN.md P3) without recomputing on calib data.",
+  "fitting_note": "P5 fits on RAW features (CLAUDE.md rule 5) — these constants exist for deployment (P8) and for the P5 clipped-variant comparison, never for fitting.",
+  "per_seed_stability": {
+    "1": {
+      "rssi_level": {
+        "p5": -89.18887999999998,
+        "p20": -88.59867999999999,
+        "p80": -84.95514,
+        "p95": -80.0073
+      },
+      "rssi_slope": {
+        "p5": -0.82954,
+        "p20": -0.38016000000000005,
+        "p80": 0.3708,
+        "p95": 0.8210700000000001
+      },
+      "n_rows": 21427
+    },
+    "2": {
+      "rssi_level": {
+        "p5": -89.20871,
+        "p20": -88.61330000000001,
+        "p80": -84.84604,
+        "p95": -79.8506
+      },
+      "rssi_slope": {
+        "p5": -0.85863,
+        "p20": -0.38173999999999997,
+        "p80": 0.3803400000000002,
+        "p95": 0.8645
+      },
+      "n_rows": 21259
+    },
+    "3": {
+      "rssi_level": {
+        "p5": -89.2097,
+        "p20": -88.61802,
+        "p80": -84.6817,
+        "p95": -79.92910000000002
+      },
+      "rssi_slope": {
+        "p5": -0.88378,
+        "p20": -0.3863,
+        "p80": 0.3788,
+        "p95": 0.859759999999997
+      },
+      "n_rows": 20793
+    },
+    "4": {
+      "rssi_level": {
+        "p5": -89.1782,
+        "p20": -88.59206,
+        "p80": -84.54684,
+        "p95": -79.8098
+      },
+      "rssi_slope": {
+        "p5": -0.8589799999999999,
+        "p20": -0.375,
+        "p80": 0.3799600000000002,
+        "p95": 0.8671399999999998
+      },
+      "n_rows": 20913
+    },
+    "5": {
+      "rssi_level": {
+        "p5": -89.22694,
+        "p20": -88.6478,
+        "p80": -84.85966,
+        "p95": -79.92782
+      },
+      "rssi_slope": {
+        "p5": -0.8156399999999999,
+        "p20": -0.37148000000000003,
+        "p80": 0.369,
+        "p95": 0.8151200000000004
+      },
+      "n_rows": 21477
+    }
+  }
+}
