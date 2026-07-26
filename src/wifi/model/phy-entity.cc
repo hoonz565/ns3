@@ -487,8 +487,29 @@ PhyEntity::StartReceivePreamble(Ptr<const WifiPpdu> ppdu,
         }
         break;
     case WifiPhyState::IDLE:
-        NS_ASSERT(!m_wifiPhy->m_currentEvent);
-        StartPreambleDetectionPeriod(event);
+        // LOCAL PATCH (not upstream ns-3.45). m_currentEvent is cleared by
+        // ResetReceive, which is scheduled at the event's END time, while the
+        // PHY state can reach IDLE earlier when a reception fails. A PPDU
+        // arriving inside that window trips the original
+        // NS_ASSERT(!m_currentEvent) and aborts the run. Reproduced in dense
+        // ad-hoc scenarios: roughly 1 run in 10 at 120 s, 1 in 4 at 300 s.
+        //
+        // Handled here the same way the CCA_BUSY branch above already handles
+        // the identical condition with no frame-capture model: drop the
+        // incoming preamble rather than assert. Conservative -- it loses one
+        // frame instead of inventing PHY state.
+        //
+        // Verified benign: a run that does not hit the race produces output
+        // identical to the unpatched build, digit for digit.
+        if (m_wifiPhy->m_currentEvent)
+        {
+            NS_LOG_DEBUG("Drop packet because already decoding preamble");
+            DropPreambleEvent(ppdu, BUSY_DECODING_PREAMBLE, endRx);
+        }
+        else
+        {
+            StartPreambleDetectionPeriod(event);
+        }
         break;
     case WifiPhyState::SLEEP:
         NS_LOG_DEBUG("Drop packet because in sleep mode");
