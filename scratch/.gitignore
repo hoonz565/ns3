@@ -4,5 +4,11 @@
 
 !nested-subdir/
 !subdir/
+
+# Scenario của dự án LinkScore. PHẢI theo dõi trong git: nó được biên dịch vào
+# mọi lần chạy sinh dữ liệu, nên nếu git không thấy nó thì git_dirty trong
+# run_manifest.json báo "sạch" trong khi kết quả không tái lập được từ SHA
+# (WORKFLOW.md mục 3).
+!linkscore/
 !scratch-simulator.cc
 !CMakeLists.txt
