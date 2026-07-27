@@ -49,6 +49,15 @@ for seed in $(seq "$START" "$END"); do
         exit 1
     fi
 
+    # Sau-run (P4): thêm sim_params_sha256 — hash tham số hiệu dụng từ
+    # meta.json — vào manifest. Đây là khoá so sánh giữa các batch;
+    # config_sha256 giữ nguyên vai trò hash file conf (kể cả key phân tích).
+    if ! python3 scripts/run_manifest.py --augment-meta "$out/meta.json" \
+            --out "$out/run_manifest.json" --quiet; then
+        echo "DỪNG: seed $seed không augment được sim_params_sha256"
+        exit 1
+    fi
+
     if python3 scripts/check_gates.py "$out" > "$out/gates.txt" 2>&1; then
         echo "seed $seed: PASS"
     else
