@@ -1,0 +1,21 @@
+{
+  "artifact": "frozen/split.json",
+  "phase": "P4",
+  "created": "2026-07-27",
+  "frozen": true,
+  "rule": "fixed by seed number, declared BEFORE any P4 data was read: seeds 6-29 -> fit, seeds 30-35 -> holdout",
+  "fit_seeds": [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29],
+  "holdout_seeds": [30, 31, 32, 33, 34, 35],
+  "rationale": [
+    "data/eval/ (seeds 36-40) is locked until P10 as the Tier-C evidence; touching it at P5 spends it early and invalidates every reported number (CLAUDE.md rule 15).",
+    "P5 therefore needs its OWN held-out set for the out-of-sample validation scatter and R2 — that is what holdout_seeds provide.",
+    "Split is by seed, never by row (rows within one run are heavily correlated — CLAUDE.md rule 6/15).",
+    "The rule is a fixed function of the seed number (first 24 / last 6 of the training batch), chosen without looking at any per-seed statistic, so no selection effect can enter."
+  ],
+  "consumers": {
+    "P5_fitting": "GLM fits and model-comparison tables (AIC/BIC) use fit_seeds only",
+    "P5_validation": "out-of-sample scatter, R2, raw-vs-clipped comparison are evaluated on holdout_seeds",
+    "P10": "data/eval seeds 36-40 stay untouched by everything above"
+  },
+  "immutability": "same mechanism as frozen/normalization.json: never overwrite; if it must change, create split-v2.json and record why in the phase report"
+}
