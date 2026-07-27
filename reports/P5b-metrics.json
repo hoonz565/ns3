@@ -1,0 +1,734 @@
+{
+  "artifact": "reports/P5b-metrics.json",
+  "phase": "P5b",
+  "protocol": {
+    "inference_only": true,
+    "refit_performed": false,
+    "holdout_seed_source": "frozen/split.json",
+    "fit_seeds": [
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29
+    ],
+    "holdout_seeds": [
+      30,
+      31,
+      32,
+      33,
+      34,
+      35
+    ],
+    "fit_holdout_overlap": [],
+    "label": "per-attempt successes = trials_future - fails_future; aggregate binomial counts used as exact weights",
+    "metric_weighting": "per future transmission attempt",
+    "log_loss_numerical_clip": "probability clipped to [1e-15, 1-1e-15]"
+  },
+  "input_sha256": {
+    "frozen/split.json": "ac70dabb866bb9b1cec0d4a46a9af0a9d4c7134a847e58049ab7fc30291bb0d5",
+    "frozen/weights.json": "d4218c8482cf8cc5375adb59216568e9eb8708bdf85caa1b93220dad5fd2275b",
+    "frozen/normalization.json": "ff3bc97ee9cab084c1b9b17c9464a38fb57712f4dbcb5e7583cf9e0a8f790733"
+  },
+  "holdout_integrity": {
+    "per_seed_rows": {
+      "30": 22625,
+      "31": 20859,
+      "32": 21126,
+      "33": 21784,
+      "34": 19740,
+      "35": 22927
+    },
+    "n_rows_total": 129061,
+    "n_rows_evaluable_full": 128237,
+    "n_rows_missing_retry": 824,
+    "prediction_file_keeps_all_rows": true,
+    "seeds_observed": [
+      30,
+      31,
+      32,
+      33,
+      34,
+      35
+    ],
+    "attempt_success_prevalence_evaluable": 0.25323374115690456,
+    "majority_to_minority_ratio": 2.948920848507294
+  },
+  "baseline_availability": {
+    "rssi_only": {
+      "status": "not_evaluated",
+      "reason": "No frozen RSSI-only coefficients or inference implementation exists; deriving one would be a new implementation or refit."
+    },
+    "rssi_plus_slope": {
+      "status": "not_evaluated",
+      "reason": "No frozen RSSI+slope coefficients or inference implementation exists; deleting retry from the full conditional model would not reproduce the registered reduced model."
+    },
+    "full_model": {
+      "status": "evaluated",
+      "implementation": "frozen/weights.json raw deployment formula"
+    },
+    "let": {
+      "status": "not_evaluated",
+      "reason": "No LET inference implementation exists in the repository."
+    },
+    "ar": {
+      "status": "evaluated",
+      "implementation": "frozen normalization: s_mac = 1 - clip(retry_rate, 0, 1)"
+    }
+  },
+  "metrics": {
+    "full_raw": {
+      "n_rows": 128237,
+      "n_trials": 959647,
+      "n_successes": 243015,
+      "n_failures": 716632,
+      "success_prevalence": 0.25323374115690456,
+      "log_loss": 0.4204937564736897,
+      "brier_score": 0.13248600402294125,
+      "roc_auc": 0.8303956069774555,
+      "pr_auc_average_precision": 0.6660796515745745,
+      "aggregate_rate_r2_attempt_weighted": 0.6172274024258971,
+      "ece_10_fixed_bins": 0.021919320704361603,
+      "mean_prediction": 0.25328308073789085,
+      "row_fraction_probability_zero": 0.0,
+      "row_fraction_probability_one": 0.0,
+      "attempt_fraction_probability_at_endpoint": 0.0
+    },
+    "full_clipped": {
+      "n_rows": 128237,
+      "n_trials": 959647,
+      "n_successes": 243015,
+      "n_failures": 716632,
+      "success_prevalence": 0.25323374115690456,
+      "log_loss": 0.429713139693359,
+      "brier_score": 0.13647885031010368,
+      "roc_auc": 0.8296282058151015,
+      "pr_auc_average_precision": 0.6502729597144062,
+      "aggregate_rate_r2_attempt_weighted": 0.5737007984146973,
+      "ece_10_fixed_bins": 0.04004065160985209,
+      "mean_prediction": 0.22942910238887035,
+      "row_fraction_probability_zero": 0.0,
+      "row_fraction_probability_one": 0.0,
+      "attempt_fraction_probability_at_endpoint": 0.0
+    },
+    "ar": {
+      "n_rows": 128237,
+      "n_trials": 959647,
+      "n_successes": 243015,
+      "n_failures": 716632,
+      "success_prevalence": 0.25323374115690456,
+      "log_loss": 1.8071255751566828,
+      "brier_score": 0.15269065962576864,
+      "roc_auc": 0.8034510265214289,
+      "pr_auc_average_precision": 0.5763404472939726,
+      "aggregate_rate_r2_attempt_weighted": 0.39697348320179415,
+      "ece_10_fixed_bins": 0.07726965759284403,
+      "mean_prediction": 0.28020064013121493,
+      "row_fraction_probability_zero": 0.32776811684615204,
+      "row_fraction_probability_one": 0.11934153169522056,
+      "attempt_fraction_probability_at_endpoint": 0.410510323066711
+    }
+  },
+  "reliability": {
+    "full_raw": [
+      {
+        "bin": 0,
+        "lower": 0.0,
+        "upper": 0.1,
+        "n_rows": 38606,
+        "n_trials": 298153,
+        "n_successes": 15583,
+        "mean_prediction": 0.07374734372901591,
+        "observed_success_rate": 0.052265112207490784,
+        "calibration_gap": -0.021482231521525126
+      },
+      {
+        "bin": 1,
+        "lower": 0.1,
+        "upper": 0.2,
+        "n_rows": 34693,
+        "n_trials": 295231,
+        "n_successes": 42547,
+        "mean_prediction": 0.14004174859012392,
+        "observed_success_rate": 0.14411426984293654,
+        "calibration_gap": 0.0040725212528126276
+      },
+      {
+        "bin": 2,
+        "lower": 0.2,
+        "upper": 0.3,
+        "n_rows": 13460,
+        "n_trials": 109277,
+        "n_successes": 31319,
+        "mean_prediction": 0.24459841925520925,
+        "observed_success_rate": 0.28660193819376445,
+        "calibration_gap": 0.042003518938555195
+      },
+      {
+        "bin": 3,
+        "lower": 0.3,
+        "upper": 0.4,
+        "n_rows": 8514,
+        "n_trials": 63450,
+        "n_successes": 24909,
+        "mean_prediction": 0.3459853485874233,
+        "observed_success_rate": 0.39257683215130024,
+        "calibration_gap": 0.046591483563876934
+      },
+      {
+        "bin": 4,
+        "lower": 0.4,
+        "upper": 0.5,
+        "n_rows": 6465,
+        "n_trials": 43786,
+        "n_successes": 21241,
+        "mean_prediction": 0.44745902217744515,
+        "observed_success_rate": 0.4851093956972548,
+        "calibration_gap": 0.037650373519809655
+      },
+      {
+        "bin": 5,
+        "lower": 0.5,
+        "upper": 0.6,
+        "n_rows": 5439,
+        "n_trials": 34617,
+        "n_successes": 19067,
+        "mean_prediction": 0.5480085235737387,
+        "observed_success_rate": 0.550798740503221,
+        "calibration_gap": 0.0027902169294822254
+      },
+      {
+        "bin": 6,
+        "lower": 0.6,
+        "upper": 0.7,
+        "n_rows": 4796,
+        "n_trials": 29063,
+        "n_successes": 17953,
+        "mean_prediction": 0.6486337824484694,
+        "observed_success_rate": 0.6177270068471941,
+        "calibration_gap": -0.030906775601275305
+      },
+      {
+        "bin": 7,
+        "lower": 0.7,
+        "upper": 0.8,
+        "n_rows": 4684,
+        "n_trials": 27447,
+        "n_successes": 19425,
+        "mean_prediction": 0.7494359899359826,
+        "observed_success_rate": 0.7077276205049732,
+        "calibration_gap": -0.04170836943100942
+      },
+      {
+        "bin": 8,
+        "lower": 0.8,
+        "upper": 0.9,
+        "n_rows": 5126,
+        "n_trials": 27157,
+        "n_successes": 22359,
+        "mean_prediction": 0.8490934131757366,
+        "observed_success_rate": 0.8233236366314394,
+        "calibration_gap": -0.02576977654429724
+      },
+      {
+        "bin": 9,
+        "lower": 0.9,
+        "upper": 1.0,
+        "n_rows": 6454,
+        "n_trials": 31466,
+        "n_successes": 28612,
+        "mean_prediction": 0.9535767061877287,
+        "observed_success_rate": 0.9092989258246996,
+        "calibration_gap": -0.044277780363029096
+      }
+    ],
+    "full_clipped": [
+      {
+        "bin": 0,
+        "lower": 0.0,
+        "upper": 0.1,
+        "n_rows": 35639,
+        "n_trials": 275575,
+        "n_successes": 14226,
+        "mean_prediction": 0.07989266264285952,
+        "observed_success_rate": 0.051622970153315795,
+        "calibration_gap": -0.028269692489543724
+      },
+      {
+        "bin": 1,
+        "lower": 0.1,
+        "upper": 0.2,
+        "n_rows": 38413,
+        "n_trials": 323843,
+        "n_successes": 44863,
+        "mean_prediction": 0.13579613877802915,
+        "observed_success_rate": 0.13853317811408614,
+        "calibration_gap": 0.0027370393360569845
+      },
+      {
+        "bin": 2,
+        "lower": 0.2,
+        "upper": 0.3,
+        "n_rows": 13040,
+        "n_trials": 107167,
+        "n_successes": 31846,
+        "mean_prediction": 0.24552605507462102,
+        "observed_success_rate": 0.2971623727453414,
+        "calibration_gap": 0.05163631767072038
+      },
+      {
+        "bin": 3,
+        "lower": 0.3,
+        "upper": 0.4,
+        "n_rows": 9085,
+        "n_trials": 68951,
+        "n_successes": 28012,
+        "mean_prediction": 0.34641132106070355,
+        "observed_success_rate": 0.4062595176284608,
+        "calibration_gap": 0.05984819656775725
+      },
+      {
+        "bin": 4,
+        "lower": 0.4,
+        "upper": 0.5,
+        "n_rows": 7839,
+        "n_trials": 52721,
+        "n_successes": 27686,
+        "mean_prediction": 0.44384338417687813,
+        "observed_success_rate": 0.5251417841087992,
+        "calibration_gap": 0.08129839993192106
+      },
+      {
+        "bin": 5,
+        "lower": 0.5,
+        "upper": 0.6,
+        "n_rows": 11883,
+        "n_trials": 68296,
+        "n_successes": 44761,
+        "mean_prediction": 0.5583552705156126,
+        "observed_success_rate": 0.655397094998243,
+        "calibration_gap": 0.09704182448263032
+      },
+      {
+        "bin": 6,
+        "lower": 0.6,
+        "upper": 0.7,
+        "n_rows": 7249,
+        "n_trials": 38966,
+        "n_successes": 30285,
+        "mean_prediction": 0.6446364067010164,
+        "observed_success_rate": 0.777216034491608,
+        "calibration_gap": 0.13257962779059163
+      },
+      {
+        "bin": 7,
+        "lower": 0.7,
+        "upper": 0.8,
+        "n_rows": 5089,
+        "n_trials": 24128,
+        "n_successes": 21336,
+        "mean_prediction": 0.7181698343666791,
+        "observed_success_rate": 0.8842838196286472,
+        "calibration_gap": 0.16611398526196808
+      },
+      {
+        "bin": 8,
+        "lower": 0.8,
+        "upper": 0.9,
+        "n_rows": 0,
+        "n_trials": 0,
+        "n_successes": 0,
+        "mean_prediction": null,
+        "observed_success_rate": null,
+        "calibration_gap": null
+      },
+      {
+        "bin": 9,
+        "lower": 0.9,
+        "upper": 1.0,
+        "n_rows": 0,
+        "n_trials": 0,
+        "n_successes": 0,
+        "mean_prediction": null,
+        "observed_success_rate": null,
+        "calibration_gap": null
+      }
+    ],
+    "ar": [
+      {
+        "bin": 0,
+        "lower": 0.0,
+        "upper": 0.1,
+        "n_rows": 43379,
+        "n_trials": 355303,
+        "n_successes": 23192,
+        "mean_prediction": 0.005878809635719373,
+        "observed_success_rate": 0.06527386484212067,
+        "calibration_gap": 0.059395055206401294
+      },
+      {
+        "bin": 1,
+        "lower": 0.1,
+        "upper": 0.2,
+        "n_rows": 21686,
+        "n_trials": 182038,
+        "n_successes": 27845,
+        "mean_prediction": 0.13630008899240817,
+        "observed_success_rate": 0.15296256825497972,
+        "calibration_gap": 0.016662479262571556
+      },
+      {
+        "bin": 2,
+        "lower": 0.2,
+        "upper": 0.3,
+        "n_rows": 10972,
+        "n_trials": 88481,
+        "n_successes": 21758,
+        "mean_prediction": 0.26633283755834586,
+        "observed_success_rate": 0.2459059007018456,
+        "calibration_gap": -0.020426936856500266
+      },
+      {
+        "bin": 3,
+        "lower": 0.3,
+        "upper": 0.4,
+        "n_rows": 7674,
+        "n_trials": 59539,
+        "n_successes": 17751,
+        "mean_prediction": 0.3377040326508675,
+        "observed_success_rate": 0.29814071448966223,
+        "calibration_gap": -0.039563318161205285
+      },
+      {
+        "bin": 4,
+        "lower": 0.4,
+        "upper": 0.5,
+        "n_rows": 3429,
+        "n_trials": 27159,
+        "n_successes": 9431,
+        "mean_prediction": 0.4286259398357819,
+        "observed_success_rate": 0.34725137155270813,
+        "calibration_gap": -0.08137456828307377
+      },
+      {
+        "bin": 5,
+        "lower": 0.5,
+        "upper": 0.6,
+        "n_rows": 8006,
+        "n_trials": 55828,
+        "n_successes": 22864,
+        "mean_prediction": 0.5086161890090994,
+        "observed_success_rate": 0.4095435981944544,
+        "calibration_gap": -0.09907259081464503
+      },
+      {
+        "bin": 6,
+        "lower": 0.6,
+        "upper": 0.7,
+        "n_rows": 9447,
+        "n_trials": 60678,
+        "n_successes": 29837,
+        "mean_prediction": 0.6209527950822372,
+        "observed_success_rate": 0.4917268202643462,
+        "calibration_gap": -0.129225974817891
+      },
+      {
+        "bin": 7,
+        "lower": 0.7,
+        "upper": 0.8,
+        "n_rows": 442,
+        "n_trials": 3698,
+        "n_successes": 2146,
+        "mean_prediction": 0.7428494591671174,
+        "observed_success_rate": 0.5803136830719308,
+        "calibration_gap": -0.16253577609518666
+      },
+      {
+        "bin": 8,
+        "lower": 0.8,
+        "upper": 0.9,
+        "n_rows": 7837,
+        "n_trials": 45583,
+        "n_successes": 27755,
+        "mean_prediction": 0.8024752407695852,
+        "observed_success_rate": 0.6088892788978347,
+        "calibration_gap": -0.19358596187175048
+      },
+      {
+        "bin": 9,
+        "lower": 0.9,
+        "upper": 1.0,
+        "n_rows": 15365,
+        "n_trials": 81340,
+        "n_successes": 60436,
+        "mean_prediction": 0.9992704302925989,
+        "observed_success_rate": 0.7430046717482174,
+        "calibration_gap": -0.2562657585443815
+      }
+    ]
+  },
+  "raw_vs_clip": {
+    "linkscore_affine_mapping": {
+      "formula": "z_clip = intercept_clip + sum(w_raw) * LinkScore",
+      "intercept_clip": -2.733508668630352,
+      "sum_w_raw": 3.6792329297719983,
+      "max_abs_equivalence_error": 5.995204332975845e-15
+    },
+    "overall": {
+      "mean_absolute_probability_change": 0.04181010385269136,
+      "max_absolute_probability_change": 0.889100681219603,
+      "raw_minus_clipped_log_loss": -0.009219383219669308,
+      "raw_minus_clipped_brier": -0.003992846287162427
+    },
+    "distance_0_200_m": {
+      "n_rows_all": 4564,
+      "n_rows_evaluable": 4564,
+      "rssi_upper_clip_fraction": 1.0,
+      "rssi_interior_fraction": 0.0,
+      "raw_dz_d_rssi": 0.33472188590279317,
+      "clipped_dz_d_rssi_fraction_zero": 1.0,
+      "raw_level_contribution_std": 1.2400911777716355,
+      "clipped_level_contribution_std": 3.552713678800501e-15,
+      "raw_level_contribution_range": 10.707451880333043,
+      "clipped_level_contribution_range": 0.0
+    },
+    "by_distance": [
+      {
+        "distance_m": "0-200",
+        "n_rows_all": 4564,
+        "n_rows_evaluable": 4564,
+        "rssi_upper_clip_fraction": 1.0,
+        "rssi_interior_fraction": 0.0,
+        "mean_absolute_probability_change": 0.3039455641280312,
+        "full_raw": {
+          "n_rows": 4564,
+          "n_trials": 22319,
+          "n_successes": 20346,
+          "n_failures": 1973,
+          "success_prevalence": 0.91159998207805,
+          "log_loss": 0.3438989952242122,
+          "brier_score": 0.0820456014000315,
+          "roc_auc": 0.607235188561754,
+          "pr_auc_average_precision": 0.9327365321568206,
+          "aggregate_rate_r2_attempt_weighted": -0.0630018879615637,
+          "ece_10_fixed_bins": 0.05324588311769734,
+          "mean_prediction": 0.9645914112880829,
+          "row_fraction_probability_zero": 0.0,
+          "row_fraction_probability_one": 0.0,
+          "attempt_fraction_probability_at_endpoint": 0.0
+        },
+        "full_clipped": {
+          "n_rows": 4564,
+          "n_trials": 22319,
+          "n_successes": 20346,
+          "n_failures": 1973,
+          "success_prevalence": 0.91159998207805,
+          "log_loss": 0.47157113434253495,
+          "brier_score": 0.14409315468952355,
+          "roc_auc": 0.6485539522569731,
+          "pr_auc_average_precision": 0.9386187904825238,
+          "aggregate_rate_r2_attempt_weighted": -2.740207639531056,
+          "ece_10_fixed_bins": 0.25746757664921244,
+          "mean_prediction": 0.6541324054288377,
+          "row_fraction_probability_zero": 0.0,
+          "row_fraction_probability_one": 0.0,
+          "attempt_fraction_probability_at_endpoint": 0.0
+        }
+      },
+      {
+        "distance_m": "200-400",
+        "n_rows_all": 22760,
+        "n_rows_evaluable": 22760,
+        "rssi_upper_clip_fraction": 0.8192003514938488,
+        "rssi_interior_fraction": 0.18079964850615116,
+        "mean_absolute_probability_change": 0.12480553550599936,
+        "full_raw": {
+          "n_rows": 22760,
+          "n_trials": 138066,
+          "n_successes": 94306,
+          "n_failures": 43760,
+          "success_prevalence": 0.6830501354424695,
+          "log_loss": 0.6004305219301809,
+          "brier_score": 0.20709781578021166,
+          "roc_auc": 0.6577817715152328,
+          "pr_auc_average_precision": 0.8013149277757172,
+          "aggregate_rate_r2_attempt_weighted": 0.12751084147774927,
+          "ece_10_fixed_bins": 0.052527002804373016,
+          "mean_prediction": 0.6561034055007404,
+          "row_fraction_probability_zero": 0.0,
+          "row_fraction_probability_one": 0.0,
+          "attempt_fraction_probability_at_endpoint": 0.0
+        },
+        "full_clipped": {
+          "n_rows": 22760,
+          "n_trials": 138066,
+          "n_successes": 94306,
+          "n_failures": 43760,
+          "success_prevalence": 0.6830501354424695,
+          "log_loss": 0.6416014898762966,
+          "brier_score": 0.2249188127299958,
+          "roc_auc": 0.6493240695348539,
+          "pr_auc_average_precision": 0.7824228373942375,
+          "aggregate_rate_r2_attempt_weighted": -0.11436365766816614,
+          "ece_10_fixed_bins": 0.14738900064739419,
+          "mean_prediction": 0.5356611347950754,
+          "row_fraction_probability_zero": 0.0,
+          "row_fraction_probability_one": 0.0,
+          "attempt_fraction_probability_at_endpoint": 0.0
+        }
+      },
+      {
+        "distance_m": "400-600",
+        "n_rows_all": 38720,
+        "n_rows_evaluable": 38720,
+        "rssi_upper_clip_fraction": 0.05064566115702479,
+        "rssi_interior_fraction": 0.9475464876033057,
+        "mean_absolute_probability_change": 0.012543714019772537,
+        "full_raw": {
+          "n_rows": 38720,
+          "n_trials": 311083,
+          "n_successes": 97253,
+          "n_failures": 213830,
+          "success_prevalence": 0.312627176669892,
+          "log_loss": 0.6228507137984496,
+          "brier_score": 0.2138724377222287,
+          "roc_auc": 0.6077093903851094,
+          "pr_auc_average_precision": 0.39744214586336424,
+          "aggregate_rate_r2_attempt_weighted": 0.017936981409140573,
+          "ece_10_fixed_bins": 0.06769393222267982,
+          "mean_prediction": 0.2606178724687135,
+          "row_fraction_probability_zero": 0.0,
+          "row_fraction_probability_one": 0.0,
+          "attempt_fraction_probability_at_endpoint": 0.0
+        },
+        "full_clipped": {
+          "n_rows": 38720,
+          "n_trials": 311083,
+          "n_successes": 97253,
+          "n_failures": 213830,
+          "success_prevalence": 0.312627176669892,
+          "log_loss": 0.6254406628388888,
+          "brier_score": 0.2150032292161002,
+          "roc_auc": 0.6007007673354028,
+          "pr_auc_average_precision": 0.39040824330248974,
+          "aggregate_rate_r2_attempt_weighted": -0.0019680604956102687,
+          "ece_10_fixed_bins": 0.06992988892267628,
+          "mean_prediction": 0.2609752837565138,
+          "row_fraction_probability_zero": 0.0,
+          "row_fraction_probability_one": 0.0,
+          "attempt_fraction_probability_at_endpoint": 0.0
+        }
+      },
+      {
+        "distance_m": "600-800",
+        "n_rows_all": 44582,
+        "n_rows_evaluable": 44497,
+        "rssi_upper_clip_fraction": 0.0,
+        "rssi_interior_fraction": 0.7303395989412768,
+        "mean_absolute_probability_change": 0.008237602711131562,
+        "full_raw": {
+          "n_rows": 44497,
+          "n_trials": 374067,
+          "n_successes": 30056,
+          "n_failures": 344011,
+          "success_prevalence": 0.08034924224804647,
+          "log_loss": 0.28536013047781356,
+          "brier_score": 0.07571291347968845,
+          "roc_auc": 0.5665812860723475,
+          "pr_auc_average_precision": 0.09722507619825452,
+          "aggregate_rate_r2_attempt_weighted": -0.12976438722305939,
+          "ece_10_fixed_bins": 0.028636738427016896,
+          "mean_prediction": 0.10898598067506338,
+          "row_fraction_probability_zero": 0.0,
+          "row_fraction_probability_one": 0.0,
+          "attempt_fraction_probability_at_endpoint": 0.0
+        },
+        "full_clipped": {
+          "n_rows": 44497,
+          "n_trials": 374067,
+          "n_successes": 30056,
+          "n_failures": 344011,
+          "success_prevalence": 0.08034924224804647,
+          "log_loss": 0.28386444860944393,
+          "brier_score": 0.07513340882785849,
+          "roc_auc": 0.5644441253981944,
+          "pr_auc_average_precision": 0.09681712036291053,
+          "aggregate_rate_r2_attempt_weighted": -0.08843877050224225,
+          "ece_10_fixed_bins": 0.028990972013906845,
+          "mean_prediction": 0.10934021426195331,
+          "row_fraction_probability_zero": 0.0,
+          "row_fraction_probability_one": 0.0,
+          "attempt_fraction_probability_at_endpoint": 0.0
+        }
+      },
+      {
+        "distance_m": "800+",
+        "n_rows_all": 18435,
+        "n_rows_evaluable": 17696,
+        "rssi_upper_clip_fraction": 0.0,
+        "rssi_interior_fraction": 0.2627610523460808,
+        "mean_absolute_probability_change": 0.01591204398044132,
+        "full_raw": {
+          "n_rows": 17696,
+          "n_trials": 114112,
+          "n_successes": 1054,
+          "n_failures": 113058,
+          "success_prevalence": 0.009236539540100954,
+          "log_loss": 0.10909433955655845,
+          "brier_score": 0.016314423907168474,
+          "roc_auc": 0.5117336837034462,
+          "pr_auc_average_precision": 0.009495068409096419,
+          "aggregate_rate_r2_attempt_weighted": -4.756228284232015,
+          "ece_10_fixed_bins": 0.07056410924448828,
+          "mean_prediction": 0.07980064878458923,
+          "row_fraction_probability_zero": 0.0,
+          "row_fraction_probability_one": 0.0,
+          "attempt_fraction_probability_at_endpoint": 0.0
+        },
+        "full_clipped": {
+          "n_rows": 17696,
+          "n_trials": 114112,
+          "n_successes": 1054,
+          "n_failures": 113058,
+          "success_prevalence": 0.009236539540100954,
+          "log_loss": 0.10968432332061645,
+          "brier_score": 0.015012312039070002,
+          "roc_auc": 0.5122144532085645,
+          "pr_auc_average_precision": 0.009445090281154603,
+          "aggregate_rate_r2_attempt_weighted": -3.8916505815678297,
+          "ece_10_fixed_bins": 0.07427122740496667,
+          "mean_prediction": 0.08350776694506763,
+          "row_fraction_probability_zero": 0.0,
+          "row_fraction_probability_one": 0.0,
+          "attempt_fraction_probability_at_endpoint": 0.0
+        }
+      }
+    ]
+  },
+  "artifacts": {
+    "predictions": "data/processed/P5b-holdout-predictions.csv.gz",
+    "reliability_table": "reports/P5b-reliability.csv",
+    "calibration_figure": "figures/P5b-calibration.png",
+    "raw_vs_clip_figure": "figures/P5b-raw-vs-clip.png",
+    "holdout_scatter_figure": "figures/P5b-holdout-scatter.png"
+  }
+}

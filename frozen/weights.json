@@ -1,0 +1,145 @@
+{
+  "artifact": "frozen/weights.json",
+  "phase": "P5a",
+  "created": "2026-07-27",
+  "frozen": true,
+  "model": "binomial GLM (logit), RAW features, free intercept, cluster-robust by seed",
+  "label": "per-attempt: successes = trials_future - fails_future (pooled probe+cbr)",
+  "fit_set": {
+    "seeds": [
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29
+    ],
+    "n_rows_used": 519968,
+    "n_rows_missing_retry": 3403
+  },
+  "provenance": {
+    "data_git_sha": "c90310d86",
+    "binary_sha256": "15198a5fc9a17648169d32b7ff558f52762d08f1192e21cecb32e730802e9465",
+    "config_sim_sha256": "3e4481e7c04f0e1cbc0db2484271f441d7ef72568f269d80e5b77f9b760e4994",
+    "sim_params_sha256": "0c94836c1d77fc7c23906fd381c476e625a59e767f38df474f3ea593d81e9885",
+    "split": "frozen/split.json@sha256:ac70dabb866bb9b1cec0d4a46a9af0a9d4c7134a847e58049ab7fc30291bb0d5",
+    "analysis_script": "analysis/fit/p5a_fit.py@sha256:b532e545c37fbae54d5446168a2d2b07578acc72fa3f75f7ee51dd2b63be4770"
+  },
+  "coefficients_raw_scale": {
+    "intercept": 29.052258484002355,
+    "rssi_level_per_dB": 0.33472188590279317,
+    "rssi_slope_per_dB_per_s": 0.7195913854964493,
+    "retry_rate": -1.8516755113966505
+  },
+  "cluster_robust_se": {
+    "intercept": 0.4020366739161613,
+    "rssi_level": 0.004734378437216001,
+    "rssi_slope": 0.008150098220937483,
+    "retry_rate": 0.022662035519103278
+  },
+  "cluster_robust_z": {
+    "intercept": 72.26270728242261,
+    "rssi_level": 70.70028100660721,
+    "rssi_slope": 88.29235746482534,
+    "retry_rate": -81.7082609298602
+  },
+  "cluster_robust_p_value": {
+    "intercept": 0.0,
+    "rssi_level": 0.0,
+    "rssi_slope": 0.0,
+    "retry_rate": 0.0
+  },
+  "cluster_robust_ci95": {
+    "intercept": [
+      28.264281082662404,
+      29.840235885342306
+    ],
+    "rssi_level": [
+      0.32544267467666677,
+      0.3440010971289196
+    ],
+    "rssi_slope": [
+      0.7036174865129479,
+      0.7355652844799507
+    ],
+    "retry_rate": [
+      -1.8960922848304604,
+      -1.8072587379628406
+    ]
+  },
+  "cov_params_order_intercept_level_slope_retry": [
+    [
+      0.16163348717356982,
+      0.0019021984641765023,
+      0.0006234654384401076,
+      0.006451432514805185
+    ],
+    [
+      0.0019021984641756843,
+      2.241433918677583e-05,
+      7.293905309400234e-06,
+      7.843978316193851e-05
+    ],
+    [
+      0.0006234654384398113,
+      7.293905309400816e-06,
+      6.642410101092834e-05,
+      2.9860652220365354e-05
+    ],
+    [
+      0.006451432514799721,
+      7.843978316191883e-05,
+      2.9860652220354997e-05,
+      0.0005135678538690986
+    ]
+  ],
+  "deployment": {
+    "formula": "z = b0 + b1*rssi_level + b2*rssi_slope + b3*retry_rate; p_hat = 1/(1+exp(-z))",
+    "note": "P8 chạy TTT trên thang logit z, KHÔNG trên LinkScore đã clip: clip ghim s_rssi=1 với 100% dòng 0-200 m nên d(LinkScore)/dt = 0 chính xác -> TTT vô hạn -> mất cảnh báo sớm đúng vùng giá trị nhất."
+  },
+  "presentation_abc": {
+    "note": "CHỈ để trình bày paper (LinkScore = a*s_rssi + b*s_slope + c*s_mac trên feature chuẩn hoá [0,1] cùng chiều); controller KHÔNG dùng. w = [b1*(p80-p20)_level, b2*(p80-p20)_slope, -b3]; (a,b,c) = w/sum(w).",
+    "w_raw": [
+      1.2839061266327803,
+      0.5436512917425674,
+      1.8516755113966505
+    ],
+    "abc": [
+      0.3489602727360738,
+      0.14776212925889892,
+      0.5032775980050272
+    ],
+    "normalization_ref": "frozen/normalization.json@sha256:ff3bc97ee9cab084c1b9b17c9464a38fb57712f4dbcb5e7583cf9e0a8f790733"
+  },
+  "validation_snapshot": {
+    "ratio_slope_over_rssi_s": 2.149818747452404,
+    "tau_s": 4.0,
+    "bootstrap_sd": {
+      "intercept": 0.38056606459964276,
+      "rssi_level": 0.004473567268860829,
+      "rssi_slope": 0.008774775670120867,
+      "retry_rate": 0.021035062350957694
+    },
+    "strata_monotone": false,
+    "strata_stable_ci95_intersection": false,
+    "strata_result": "mixed"
+  }
+}

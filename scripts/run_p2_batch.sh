@@ -61,6 +61,11 @@ for seed in $(seq "$START" "$END"); do
     if python3 scripts/check_gates.py "$out" > "$out/gates.txt" 2>&1; then
         echo "seed $seed: PASS"
     else
+        gate_rc=$?
+        if [ "$gate_rc" -eq 2 ]; then
+            echo "DỪNG: seed $seed vỡ bất biến dữ liệu/config — xem $out/gates.txt"
+            exit 1
+        fi
         gatefails=$((gatefails + 1))
         echo "seed $seed: TRƯỢT CỔNG ($gatefails; dừng khi đủ 3) — xem $out/gates.txt"
     fi

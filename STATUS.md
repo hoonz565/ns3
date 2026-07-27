@@ -7,21 +7,21 @@ Cập nhật lần cuối: 2026-07-27
 
 ## Phase hiện tại
 
-**P4 HOÀN TẤT — CHỜ DUYỆT SANG P5. Holdout chốt TRƯỚC khi nhìn dữ liệu:
-`frozen/split.json` = seeds 6–29 fit / 30–35 holdout (commit `7d7f17534`
-đứng trước mọi việc khác). Normalization đóng băng đã áp lên toàn bộ
-758 301 dòng (`rows_norm.csv` mỗi seed, cột thô nguyên vẹn); ghim biên đo
-cho cả hai bản clip. Cổng VIF ĐẠT: 2.707 / 1.000 / 2.707 < 5. Hồ sơ cổng
-35 seed đồng nhất ở 0.38 (giá trị đo trùng khít; một phiên bản check_gates
-chấm cả hai batch — diff giữa hai SHA rỗng). Manifest mang bộ ba khoá so
-sánh (`binary_sha256`, `config_sim_sha256`, `sim_params_sha256`) — ngoại
-lệ "config hash của eval sẽ khác" đã gỡ hẳn. KHÔNG fit, KHÔNG PCA. Báo
-cáo: `reports/P4-dataset.md`.**
+**P5b HOÀN TẤT TRONG PHẠM VI FROZEN-INFERENCE — đã đọc đúng holdout
+seeds 30–35, assert không overlap fit 6–29, không refit và không sửa
+artifact P5a. 129.061 dòng holdout được xuất prediction; 128.237 dòng đủ
+retry (959.647 attempts) dùng cho metrics, 824 dòng thiếu retry được giữ
+với prediction rỗng. Full raw: LogLoss 0,420494, Brier 0,132486, ROC AUC
+0,830396, PR AUC 0,666080, weighted R² 0,617227, ECE-10 0,021919; thắng
+AR persistence ở mọi point metric. Clipped Full xấu hơn tổng thể và ghim
+`s_RSSI=1` ở 100% dòng 0–200 m, làm đạo hàm RSSI-level bằng 0; vùng này
+mean |p_raw−p_clip| = 30,395 điểm %. Báo cáo:
+`reports/P5b-eval.md`. `data/eval/` vẫn cấm tới P10.**
 
-P5 kế tiếp (cần duyệt), thứ tự đã chốt trong PLAN.md: **Bước 0 PCA → GLM
-trên feature THÔ, tập fit 24 seed → thang hiệu chỉnh attenuation**;
-scatter/R² ngoài mẫu trên holdout 30–35; so raw vs clip(p20/p80) vs
-clip(p5/p95); bảng đối chứng có AR baseline (chỉ-retry) và LET hình học.
+Giới hạn đã ghi rõ: repo không có frozen inference implementation cho
+RSSI-only, RSSI+slope hoặc LET; dưới lệnh cấm refit/tạo baseline mới, ba
+hàng đó không được dựng surrogate và chưa thể so hợp lệ. P5b không tuyên
+bố Full thắng ba baseline chưa khả dụng này.
 
 ## Đã hoàn thành
 
@@ -63,14 +63,31 @@ clip(p5/p95); bảng đối chứng có AR baseline (chỉ-retry) và LET hình 
   "near-q ở 0.38 chỉ bắt bão hoà NẶNG, bộ dò chính là degree"; PLAN.md P5
   Limitations nhận mục bất đối xứng p5/p95 (nới 0.59 dB dưới / 4.88 dB
   trên) kèm số ghim đo được.
+- **P5a — fit lõi** (`reports/P5a-fit.md`): PCA trên tập fit không vượt
+  ngưỡng thừa 95%; GLM nhị thức thô có intercept + cluster theo seed;
+  bootstrap theo seed ổn định, mọi dấu đúng vật lý; tỉ số slope/RSSI chỉ
+  2,15 s thay vì 4 s; phân tầng rssi_n cho mẫu hỗn hợp nên dừng trước
+  reliability-ratio; xuất `frozen/weights.json` dạng logit thô và
+  `(a,b,c)` chỉ-trình-bày; chưa đọc holdout/chưa làm bảng P5b.
+- **P5a addendum**: từ 3.860.795 attempt trên dòng GLM, midpoint trọng số
+  = 1,991 s và không giải thích ratio 2,15 s vì feature/label center cách
+  nhau 3,991 s; cố định dist 400–600 m rồi chia quartile rssi_n vẫn cho
+  beta_slope không đơn điệu (0,446/0,748/0,795/0,716). Kết luận P5a về
+  attenuation đứng vững; không đọc holdout.
+- **P5b — holdout frozen inference** (`reports/P5b-eval.md`): seed
+  30–35, không overlap fit, không refit; xuất prediction toàn holdout,
+  per-attempt LogLoss/Brier/ROC AUC/PR AUC, fixed-bin reliability,
+  calibration curve và weighted-R² scatter. Full raw vượt AR ở mọi point
+  metric. Clipping làm LogLoss/Brier/ECE tổng thể xấu hơn và xoá
+  RSSI-level sensitivity trên toàn bộ dòng 0–200 m. RSSI-only,
+  RSSI+slope, LET không có frozen implementation nên không tạo thay thế.
 
 ## Đang vướng
 
-**Chờ duyệt sang P5.** Không có việc để ngỏ trong phạm vi P4. Hai điểm
-treo đã ghi cho phase sau (chi tiết `reports/P4-dataset.md` Bất thường):
-`s_rssi` triển khai gần nhị phân ngoài 400–800 m (chuyện của P8, không đổi
-frozen bây giờ); phần vượt chỉ định `config_sim_sha256` chờ anh/chị bác
-hoặc giữ.
+Không có lỗi thực thi P5b. Bảng baseline preregistered còn thiếu
+RSSI-only, RSSI+slope và LET vì không có frozen implementation; giải quyết
+điểm này sẽ cần một quyết định phạm vi riêng, không được tự ý refit sau
+khi đã mở holdout.
 
 ## Quyết định đã chốt
 
@@ -96,9 +113,9 @@ hoặc giữ.
   "config_sha256 của eval sẽ khác vì key gate" ĐÃ GỠ: đổi ngưỡng cổng
   không đổi `config_sim_sha256` (kiểm chứng: conf 0.35 và 0.38 cùng hash).
   Eval hợp lệ ⟺ bộ ba trùng train. `config_sha256` cũ giữ để so lịch sử.
-- **P5 mở màn bằng phân tích chiều (PCA)** trên ba feature z-score, toàn
-  tập 35 seed, trước mọi GLM; >95% phương sai ở 2 thành phần đầu = công
-  thức thừa một số hạng, phải nói thẳng trong paper.
+- **P5 mở màn bằng phân tích chiều (PCA)** trên ba feature z-score, tập fit
+  seeds 6–29, trước mọi GLM; đo được 93,14% phương sai ở 2 thành phần đầu,
+  dưới tiêu chí >95% để kết luận công thức thừa một số hạng.
 - **`rssi_level` không mang tin vượt khoảng cách THEO CẤU TẠO KÊNH**
   (LogDistance + Nakagami, không shadowing per-link → E[RSSI] = f(d) tất
   định). Vào **Results**, không phải Limitations: giá trị vượt-hình-học
@@ -179,7 +196,6 @@ hoặc giữ.
 
 ## Chưa chạm
 
-`frozen/weights.json` (việc của P5). `data/eval/` (RỖNG, cưỡng chế bằng
-`run_tests.sh` tới P10). Chưa fit gì, chưa PCA gì — P5 làm cả hai theo thứ
-tự mới. Dataset P2 đóng: `data/calib/` (P3 đã dùng xong), `data/train/`
-(P5 fit trên seeds 6–29, holdout 30–35 chỉ để validate — `frozen/split.json`).
+`data/eval/` vẫn RỖNG và bị `run_tests.sh` cưỡng chế tới P10. Dataset P2
+đóng: `data/calib/` (P3 đã dùng xong), `data/train/` (P5a fit seeds 6–29;
+P5b chỉ inference holdout seeds 30–35 theo `frozen/split.json`).

@@ -255,8 +255,8 @@ print(res.summary())
 
 ### Bước 0 — phân tích chiều TRƯỚC khi fit (thêm 2026-07-27, P3)
 
-PCA / phổ giá trị riêng trên ba feature đã chuẩn hoá z-score, toàn tập 35
-seed, **trước mọi GLM**. Đây là phân tích mô tả: hằng số z-score tính trên
+PCA / phổ giá trị riêng trên ba feature đã chuẩn hoá z-score, tập fit seeds
+6–29, **trước mọi GLM**. Đây là phân tích mô tả: hằng số z-score tính trên
 tập gộp KHÔNG được tái dùng trong bất kỳ mô hình được fit/so sánh nào
 (mọi thứ vào bảng đối chứng tuân thủ chia theo seed của quy tắc 15). Lý do: `rssi_level` ≈ f(khoảng cách) theo cấu tạo
 kênh (mục "Diễn giải β_RSSI" bên dưới), và corr(level, retry) = −0.793 nên

@@ -5,9 +5,9 @@
     python3 scripts/check_gates.py data/smoke/p2-harness/seed-1 \
         [--config sim-config/fanet-tier2.conf]
 
-Exit 0 nếu mọi cổng đạt, 1 nếu có cổng trượt, 2 nếu thiếu file. Một run trượt
-cổng là run KHÔNG DÙNG ĐƯỢC, không phải run yếu — dừng và báo cáo, đừng nới
-ngưỡng (WORKFLOW.md quy tắc vận hành 7).
+Exit 0 nếu mọi cổng đạt, 1 nếu có cổng trượt, 2 nếu thiếu file hoặc vỡ bất
+biến registry/config. Một run trượt cổng là run KHÔNG DÙNG ĐƯỢC, không phải
+run yếu — dừng và báo cáo, đừng nới ngưỡng (WORKFLOW.md quy tắc vận hành 7).
 
 Ngoài các cổng, in thêm những con số P2 phải nhìn trước khi duyệt batch:
   - degree so với 6.14 của P1 (cùng định nghĩa: tỉ lệ nhận beacon >= 0.5 / 5 s)
@@ -28,6 +28,7 @@ import argparse
 import csv
 import json
 import math
+import re
 import sys
 from pathlib import Path
 
@@ -52,6 +53,29 @@ def read_conf(paths: list[str]) -> dict[str, str]:
             key, val = (part.strip() for part in line.split("=", 1))
             values[key] = val
     return values
+
+
+def parse_unused_keys(stdout_text: str) -> set[str] | None:
+    """Tập key binary khai 'co trong registry nhung scenario nay KHONG doc'.
+
+    Định dạng trong stdout.log (link-dataset-fanet):
+        sim-config: CANH BAO 10 key ... KHONG doc:
+           gateDegreeMin, gateLossMax, ..., seedsTrain
+    Trả về None nếu không thấy dòng cảnh báo (scenario đọc hết mọi key).
+    """
+    lines = stdout_text.splitlines()
+    for i, line in enumerate(lines):
+        if "KHONG doc" in line and "registry" in line:
+            match = re.search(r"CANH BAO (\d+) key", line)
+            if match is None or i + 1 >= len(lines):
+                raise ValueError("dòng registry của binary sai định dạng")
+            keys = {k.strip() for k in lines[i + 1].split(",") if k.strip()}
+            if len(keys) != int(match.group(1)):
+                raise ValueError(
+                    f"binary khai {match.group(1)} key nhưng in {len(keys)} key"
+                )
+            return keys
+    return None
 
 
 def median(xs: list[float]) -> float:
@@ -137,6 +161,47 @@ def main(argv=None) -> int:
     # là hằng số thừa kế từ cấu hình radio khác. 0.64·R½ = 400 m tại 625 m.
     near_max_m = 0.64 * float(conf["rHalfM"])
     gate_near_q_max = float(conf["gateNearQMax"])
+
+    # --- Gương registry (P5a) — bảo vệ config_sim_sha256 khỏi bảo trì tay.
+    # Quy tắc loại trừ của hash mô phỏng (run_manifest._conf_is_analysis_key:
+    # gate*/seeds*/rHalfM) phải chọn ra từ conf ĐÚNG tập key mà binary khai
+    # "không đọc" trong stdout.log. Lệch chiều nào cũng phải DỪNG:
+    #   - key phân tích mới không khớp quy tắc -> lọt vào hash mô phỏng,
+    #     eval bị kết luận "khác tham số" oan;
+    #   - key khớp quy tắc nhưng binary THỰC RA có đọc -> tham số mô phỏng
+    #     bị loại khỏi hash, đổi nó mà hash không đổi;
+    #   - tham số vật lý nằm trong danh sách "không đọc" -> scenario đang
+    #     chạy bằng default, không bằng config (cảnh báo sẵn của binary,
+    #     nay thành lỗi cứng).
+    from run_manifest import _conf_is_analysis_key  # scripts/ cùng thư mục
+
+    stdout_path = run_dir / "stdout.log"
+    if not stdout_path.is_file():
+        print("[check_gates] thiếu stdout.log — không thể assert gương registry "
+              "của config_sim_sha256, DỪNG", file=sys.stderr)
+        return 2
+    else:
+        try:
+            printed = parse_unused_keys(stdout_path.read_text())
+        except ValueError as exc:
+            print(f"[check_gates] {exc}; DỪNG", file=sys.stderr)
+            return 2
+        expected = {k for k in conf if _conf_is_analysis_key(k)}
+        if printed is None:
+            print("[check_gates] stdout.log không có danh sách registry mà "
+                  "binary không đọc — không thể assert config_sim_sha256, DỪNG",
+                  file=sys.stderr)
+            return 2
+        elif printed != expected:
+            only_bin = sorted(printed - expected)
+            only_rule = sorted(expected - printed)
+            print("[check_gates] LỆCH GƯƠNG REGISTRY — config_sim_sha256 sẽ "
+                  "lệch oan, DỪNG.\n"
+                  f"  binary khai không đọc mà quy tắc không loại: {only_bin}\n"
+                  f"  quy tắc loại mà binary lại có đọc:           {only_rule}\n"
+                  "  Sửa _conf_is_analysis_key trong run_manifest.py hoặc đặt "
+                  "lại tên key cho khớp quy ước gate*/seeds*.", file=sys.stderr)
+            return 2
 
     summary = json.loads(summary_path.read_text())
 
