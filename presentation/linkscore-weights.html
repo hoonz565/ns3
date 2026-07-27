@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Từ mô phỏng đến trọng số LinkScore</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --panel: #101f32;
+      --panel2: #152a40;
+      --ink: #f5f9ff;
+      --muted: #9eb1c5;
+      --cyan: #4de4ff;
+      --magenta: #ff5ccf;
+      --amber: #ffbd59;
+      --green: #5ce1a9;
+      --red: #ff6b6b;
+      --line: rgba(255,255,255,.13);
+      --shadow: 0 20px 70px rgba(0,0,0,.35);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); }
+    body {
+      background:
+        radial-gradient(circle at 15% 0%, rgba(77,228,255,.10), transparent 32%),
+        radial-gradient(circle at 90% 100%, rgba(255,92,207,.09), transparent 30%),
+        var(--bg);
+    }
+
+    .deck { width: 100%; height: 100%; position: relative; }
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: clamp(14px, 2vh, 24px);
+      padding: clamp(26px, 4vw, 64px) clamp(30px, 5vw, 80px) clamp(34px, 5vh, 58px);
+      opacity: 0;
+      transform: translateX(36px) scale(.985);
+      pointer-events: none;
+      transition: opacity .35s ease, transform .35s ease;
+    }
+    .slide.active { opacity: 1; transform: none; pointer-events: auto; }
+    .slide::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,.55), transparent 85%);
+    }
+    .slide > * { position: relative; z-index: 1; }
+
+    header { display: flex; align-items: flex-start; justify-content: space-between; gap: 28px; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: clamp(42px, 6vw, 88px); line-height: .98; letter-spacing: -.055em; max-width: 1050px; }
+    h2 { font-size: clamp(30px, 4vw, 58px); line-height: 1.02; letter-spacing: -.04em; }
+    h3 { font-size: clamp(19px, 2vw, 30px); line-height: 1.1; }
+    .eyebrow {
+      color: var(--cyan);
+      font-size: clamp(12px, 1.1vw, 16px);
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .lead { color: var(--muted); font-size: clamp(18px, 2vw, 30px); line-height: 1.35; max-width: 920px; }
+    .step {
+      display: inline-grid;
+      place-items: center;
+      width: 52px;
+      aspect-ratio: 1;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      color: var(--muted);
+      font-weight: 900;
+      font-size: 18px;
+      flex: 0 0 auto;
+    }
+    .content { min-height: 0; display: grid; align-items: center; }
+    .grid2 { grid-template-columns: 1fr 1fr; gap: clamp(18px, 3vw, 42px); }
+    .grid3 { grid-template-columns: repeat(3, 1fr); gap: clamp(14px, 2vw, 28px); }
+    .grid4 { grid-template-columns: repeat(4, 1fr); gap: clamp(12px, 1.5vw, 22px); }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 26px;
+      background: linear-gradient(145deg, rgba(21,42,64,.92), rgba(9,23,38,.86));
+      box-shadow: var(--shadow);
+      padding: clamp(18px, 2.5vw, 34px);
+      min-width: 0;
+    }
+    .card.flat { box-shadow: none; background: rgba(16,31,50,.70); }
+    .metric { height: 100%; display: grid; grid-template-rows: auto 1fr auto; gap: 18px; }
+    .metric .icon { width: 58px; height: 58px; border-radius: 18px; display: grid; place-items: center; background: rgba(255,255,255,.07); }
+    .metric p, .caption { color: var(--muted); font-size: clamp(13px, 1.35vw, 19px); line-height: 1.45; }
+    .big-number { font-size: clamp(42px, 6vw, 84px); line-height: 1; font-weight: 900; letter-spacing: -.06em; }
+    .num-cyan { color: var(--cyan); }
+    .num-magenta { color: var(--magenta); }
+    .num-amber { color: var(--amber); }
+    .num-green { color: var(--green); }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 13px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.07);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-weight: 700;
+      font-size: clamp(11px, 1vw, 15px);
+      white-space: nowrap;
+    }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+    .formula {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-weight: 800;
+      letter-spacing: -.025em;
+      font-size: clamp(18px, 2.2vw, 34px);
+      line-height: 1.5;
+      color: white;
+    }
+    .formula small { color: var(--muted); font-size: .58em; font-weight: 600; }
+    .accent { color: var(--cyan); }
+    .magenta { color: var(--magenta); }
+    .amber { color: var(--amber); }
+    .green { color: var(--green); }
+    .red { color: var(--red); }
+
+    .hero {
+      overflow: hidden;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: .9fr 1.1fr;
+      align-items: center;
+      gap: 40px;
+    }
+    .mesh { width: 100%; max-height: 62vh; filter: drop-shadow(0 15px 35px rgba(0,0,0,.35)); }
+    .mesh .link { stroke-dasharray: 9 9; animation: dash 8s linear infinite; }
+    @keyframes dash { to { stroke-dashoffset: -100; } }
+
+    .mini-chart { width: 100%; height: min(24vh, 190px); }
+    .axis { stroke: rgba(255,255,255,.24); stroke-width: 1.5; }
+    .trace-cyan { fill: none; stroke: var(--cyan); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+    .trace-magenta { fill: none; stroke: var(--magenta); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+    .trace-amber { fill: none; stroke: var(--amber); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+
+    .timeline { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; gap: 20px; }
+    .window {
+      border-radius: 24px;
+      padding: 28px;
+      border: 1px solid var(--line);
+      min-height: 240px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .window.past { background: linear-gradient(145deg, rgba(77,228,255,.14), rgba(77,228,255,.03)); }
+    .window.future { background: linear-gradient(145deg, rgba(255,189,89,.15), rgba(255,189,89,.03)); }
+    .anchor { display: grid; place-items: center; gap: 10px; min-width: 92px; }
+    .anchor-line { width: 3px; height: 100%; min-height: 210px; background: linear-gradient(var(--cyan), white, var(--amber)); border-radius: 4px; }
+    .feature-list { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .sim-layout { grid-template-columns: 1.2fr .8fr; }
+    .figure {
+      width: 100%;
+      height: 100%;
+      max-height: 60vh;
+      object-fit: contain;
+      border-radius: 20px;
+      background: white;
+    }
+    .specs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .spec {
+      background: rgba(255,255,255,.055);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 15px;
+    }
+    .spec strong { display: block; font-size: clamp(20px, 2vw, 30px); line-height: 1; margin-bottom: 7px; }
+    .spec span { color: var(--muted); font-size: clamp(11px, 1vw, 15px); }
+
+    .traffic-card { text-align: center; min-height: 270px; display: grid; align-content: center; gap: 16px; }
+    .traffic-icon { width: 86px; height: 86px; margin: 0 auto; display: grid; place-items: center; border-radius: 50%; font-size: 42px; border: 1px solid var(--line); background: rgba(255,255,255,.06); }
+
+    .seedbar { display: flex; width: 100%; height: clamp(120px, 18vh, 170px); border-radius: 26px; overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow); }
+    .seedblock { display: grid; place-items: center; text-align: center; min-width: 0; padding: 14px; position: relative; }
+    .seedblock strong { font-size: clamp(26px, 3vw, 46px); }
+    .seedblock span { font-size: clamp(11px, 1vw, 15px); color: rgba(255,255,255,.8); }
+    .calib { flex: 5; background: #14768a; }
+    .fit { flex: 24; background: #7b3273; }
+    .hold { flex: 6; background: #9a6320; }
+    .eval { flex: 5; background: repeating-linear-gradient(135deg, #26445b, #26445b 10px, #1d3447 10px, #1d3447 20px); }
+    .seed-caption { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 20px; }
+    .seed-caption .pill { justify-content: center; white-space: normal; text-align: center; }
+
+    .terminal {
+      background: #050b13;
+      border: 1px solid rgba(255,255,255,.17);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: clamp(12px, 1.35vw, 20px);
+    }
+    .terminal-bar { height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 18px; border-bottom: 1px solid var(--line); }
+    .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
+    pre { margin: 0; white-space: pre-wrap; padding: clamp(20px, 3vw, 36px); line-height: 1.7; color: #dce8f5; }
+    .prompt { color: var(--green); }
+    .command { color: white; }
+    .comment { color: #657b91; }
+
+    .artifacts { display: grid; gap: 10px; }
+    .artifact { display: flex; align-items: center; gap: 13px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.04); font-family: monospace; font-size: clamp(12px, 1.15vw, 17px); }
+    .file-icon { color: var(--cyan); font-size: 20px; }
+
+    .pipeline { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .node {
+      flex: 1;
+      min-height: 150px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 18px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      background: rgba(16,31,50,.85);
+    }
+    .node strong { display: block; font-size: clamp(19px, 2vw, 30px); }
+    .node span { color: var(--muted); font-size: clamp(11px, 1vw, 15px); }
+    .arrow { color: var(--cyan); font-size: clamp(24px, 3vw, 46px); }
+
+    .range {
+      position: relative;
+      height: 68px;
+      margin: 22px 0;
+      border-radius: 20px;
+      background: linear-gradient(90deg, rgba(255,92,207,.35), rgba(77,228,255,.85));
+      overflow: visible;
+    }
+    .range::before, .range::after { position: absolute; bottom: -26px; color: var(--muted); font-family: monospace; font-size: clamp(11px, 1vw, 15px); }
+    .range::before { content: attr(data-lo); left: 0; }
+    .range::after { content: attr(data-hi); right: 0; }
+    .range .clip-left, .range .clip-right {
+      position: absolute; top: 0; bottom: 0; width: 14%; background: repeating-linear-gradient(135deg, rgba(5,11,19,.65), rgba(5,11,19,.65) 7px, rgba(255,255,255,.05) 7px, rgba(255,255,255,.05) 14px);
+    }
+    .range .clip-left { left: 0; border-radius: 20px 0 0 20px; }
+    .range .clip-right { right: 0; border-radius: 0 20px 20px 0; }
+
+    .coef { display: grid; grid-template-columns: 1.25fr .8fr .8fr; align-items: center; gap: 12px; padding: 14px 18px; border-radius: 16px; background: rgba(255,255,255,.05); border: 1px solid var(--line); }
+    .coef .bar { height: 16px; background: rgba(255,255,255,.07); border-radius: 99px; overflow: hidden; }
+    .coef .bar i { display: block; height: 100%; border-radius: inherit; }
+    .coef strong { font-family: monospace; font-size: clamp(14px, 1.4vw, 21px); }
+    .coef span { color: var(--muted); font-size: clamp(11px, 1vw, 15px); }
+
+    .donut-wrap { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 30px; }
+    .donut { width: min(33vw, 340px); aspect-ratio: 1; border-radius: 50%; margin: auto; background: conic-gradient(var(--cyan) 0 34.896%, var(--magenta) 34.896% 49.672%, var(--amber) 49.672% 100%); position: relative; box-shadow: var(--shadow); }
+    .donut::after { content: "a + b + c\\A = 1"; white-space: pre; position: absolute; inset: 24%; display: grid; place-items: center; text-align: center; background: var(--bg); border-radius: 50%; font-weight: 900; font-size: clamp(18px, 2vw, 28px); }
+    .legend { display: grid; gap: 18px; }
+    .legend-item { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 12px; }
+    .legend-item i { width: 16px; height: 16px; border-radius: 5px; }
+    .legend-item strong { font-size: clamp(22px, 2.5vw, 38px); }
+    .legend-item span { color: var(--muted); }
+
+    .score-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+    .score { padding: 18px 12px; text-align: center; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.05); }
+    .score strong { display: block; font-size: clamp(22px, 2.4vw, 36px); color: var(--green); letter-spacing: -.04em; }
+    .score span { color: var(--muted); font-size: clamp(10px, .95vw, 14px); }
+    .plot-stage { display: grid; grid-template-columns: 1.15fr .85fr; gap: 24px; min-height: 0; }
+
+    .summary-flow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
+    .summary-step { min-width: 0; padding: 18px 10px; text-align: center; border-radius: 18px; border: 1px solid var(--line); background: rgba(255,255,255,.045); display: grid; gap: 10px; align-content: center; }
+    .summary-step b { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; margin: auto; background: var(--cyan); color: #06111e; }
+    .summary-step strong { font-size: clamp(12px, 1.2vw, 18px); }
+    .summary-step span { color: var(--muted); font-size: clamp(9px, .85vw, 13px); }
+
+    footer { display: flex; align-items: center; justify-content: space-between; color: #71869b; font-size: 12px; letter-spacing: .04em; }
+    .keys { display: flex; gap: 7px; align-items: center; }
+    kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 3px 7px; color: var(--muted); background: rgba(255,255,255,.04); font-family: inherit; }
+    .progress { position: fixed; z-index: 20; bottom: 0; left: 0; width: 0; height: 4px; background: linear-gradient(90deg, var(--cyan), var(--magenta), var(--amber)); transition: width .3s ease; }
+    .nav { position: fixed; z-index: 20; right: 18px; bottom: 17px; display: flex; gap: 7px; }
+    .nav button {
+      width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 50%; color: var(--ink); background: rgba(7,17,31,.74); backdrop-filter: blur(10px); cursor: pointer; font-size: 18px;
+    }
+    .nav button:hover { border-color: var(--cyan); }
+
+    @media (max-width: 900px) {
+      .grid3, .grid4, .score-grid { grid-template-columns: repeat(2, 1fr); }
+      .hero, .grid2, .sim-layout, .plot-stage { grid-template-columns: 1fr; }
+      .mesh { max-height: 34vh; }
+      .traffic-card { min-height: 180px; }
+      .summary-flow { grid-template-columns: repeat(4, 1fr); }
+      .slide { overflow-y: auto; }
+    }
+    @media print {
+      html, body { overflow: visible; background: #07111f; }
+      .deck { height: auto; }
+      .slide { position: relative; width: 100vw; height: 56.25vw; opacity: 1; transform: none; page-break-after: always; }
+      .nav, .progress { display: none; }
+    }
+  </style>
+</head>
+<body>
+<main class="deck" id="deck">
+
+  <section class="slide active">
+    <header>
+      <div>
+        <div class="eyebrow">ns-3.45 · FANET · LinkScore</div>
+        <h1>Từ mô phỏng đến<br><span class="accent">trọng số LinkScore</span></h1>
+      </div>
+      <span class="step">00</span>
+    </header>
+    <div class="content hero">
+      <div>
+        <p class="lead">Một pipeline có kiểm soát: đo link → tạo nhãn tương lai → fit GLM → đóng băng trọng số → kiểm định ngoài mẫu.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:28px">
+          <span class="pill"><span class="dot accent"></span> RSSI level</span>
+          <span class="pill"><span class="dot magenta"></span> RSSI slope</span>
+          <span class="pill"><span class="dot amber"></span> MAC retry</span>
+        </div>
+      </div>
+      <svg class="mesh" viewBox="0 0 720 560" aria-label="Mạng FANET với các liên kết không dây">
+        <defs>
+          <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+            <stop offset="0" stop-color="#4de4ff" stop-opacity=".35"/>
+            <stop offset="1" stop-color="#4de4ff" stop-opacity="0"/>
+          </radialGradient>
+          <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        <circle cx="360" cy="270" r="250" fill="url(#halo)"/>
+        <g fill="none" stroke-width="3" opacity=".8">
+          <path class="link" d="M135 130 L330 85 L560 145 L610 350 L395 465 L150 390 Z" stroke="#4de4ff"/>
+          <path class="link" d="M135 130 L355 270 L560 145 M150 390 L355 270 L610 350 M330 85 L355 270 L395 465" stroke="#ff5ccf"/>
+          <path class="link" d="M135 130 L610 350 M560 145 L150 390" stroke="#ffbd59" opacity=".65"/>
+        </g>
+        <g fill="#f5f9ff" stroke="#4de4ff" stroke-width="4" filter="url(#glow)">
+          <g transform="translate(135 130)"><path d="M-32 0h64M0-18v36M-17-13l34 26M17-13l-34 26"/><circle r="11" fill="#07111f"/></g>
+          <g transform="translate(330 85)"><path d="M-32 0h64M0-18v36M-17-13l34 26M17-13l-34 26"/><circle r="11" fill="#07111f"/></g>
+          <g transform="translate(560 145)"><path d="M-32 0h64M0-18v36M-17-13l34 26M17-13l-34 26"/><circle r="11" fill="#07111f"/></g>
+          <g transform="translate(610 350)"><path d="M-32 0h64M0-18v36M-17-13l34 26M17-13l-34 26"/><circle r="11" fill="#07111f"/></g>
+          <g transform="translate(395 465)"><path d="M-32 0h64M0-18v36M-17-13l34 26M17-13l-34 26"/><circle r="11" fill="#07111f"/></g>
+          <g transform="translate(150 390)"><path d="M-32 0h64M0-18v36M-17-13l34 26M17-13l-34 26"/><circle r="11" fill="#07111f"/></g>
+          <g transform="translate(355 270) scale(1.3)"><path d="M-32 0h64M0-18v36M-17-13l34 26M17-13l-34 26"/><circle r="11" fill="#07111f"/></g>
+        </g>
+      </svg>
+    </div>
+    <footer><span>Dữ liệu và con số lấy từ frozen artifacts + reports trong repo</span><span class="keys"><kbd>←</kbd><kbd>→</kbd> chuyển slide</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><div><div class="eyebrow">Bước 1 · Định nghĩa</div><h2>LinkScore nhìn vào <span class="accent">3 tín hiệu</span></h2></div><span class="step">01</span></header>
+    <div class="content grid3">
+      <article class="card metric">
+        <div class="icon accent">◉</div>
+        <div>
+          <h3>RSSI level</h3>
+          <p>Mức tín hiệu trung bình trong cửa sổ vừa qua.</p>
+        </div>
+        <strong class="big-number num-cyan">mức</strong>
+      </article>
+      <article class="card metric">
+        <div class="icon magenta">↗</div>
+        <div>
+          <h3>RSSI slope</h3>
+          <p>Xu hướng link đang tốt lên hay xấu đi.</p>
+        </div>
+        <strong class="big-number num-magenta">trend</strong>
+      </article>
+      <article class="card metric">
+        <div class="icon amber">↻</div>
+        <div>
+          <h3>MAC retry</h3>
+          <p>Lịch sử phải phát lại ở tầng MAC.</p>
+        </div>
+        <strong class="big-number num-amber">nhớ</strong>
+      </article>
+    </div>
+    <footer><span>Ba góc nhìn của cùng trạng thái link</span><span>01 / 09</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><div><div class="eyebrow">Bước 2 · Tín hiệu</div><h2>Mỗi metric trả lời <span class="magenta">một câu hỏi</span></h2></div><span class="step">02</span></header>
+    <div class="content grid3">
+      <article class="card metric">
+        <h3 class="accent">Tín hiệu mạnh không?</h3>
+        <svg class="mini-chart" viewBox="0 0 320 170" aria-label="Đường RSSI level">
+          <path class="axis" d="M25 140H300M25 20V140"/>
+          <path class="trace-cyan" d="M30 104 C70 92,95 107,130 82 S200 72,235 53 S270 43,295 47"/>
+          <path d="M25 80H300" stroke="#4de4ff" stroke-opacity=".22" stroke-dasharray="7 7"/>
+        </svg>
+        <p><span class="accent">RSSI ↑</span> → margin thu tốt hơn</p>
+      </article>
+      <article class="card metric">
+        <h3 class="magenta">Link đang đi đâu?</h3>
+        <svg class="mini-chart" viewBox="0 0 320 170" aria-label="Độ dốc RSSI">
+          <path class="axis" d="M25 140H300M25 20V140"/>
+          <path class="trace-magenta" d="M35 130L290 38"/>
+          <g fill="#ff5ccf"><circle cx="45" cy="127" r="5"/><circle cx="90" cy="112" r="5"/><circle cx="140" cy="95" r="5"/><circle cx="195" cy="69" r="5"/><circle cx="245" cy="58" r="5"/><circle cx="285" cy="40" r="5"/></g>
+        </svg>
+        <p><span class="magenta">slope &gt; 0</span> → link đang cải thiện</p>
+      </article>
+      <article class="card metric">
+        <h3 class="amber">Vừa phải thử lại bao nhiêu?</h3>
+        <svg class="mini-chart" viewBox="0 0 320 170" aria-label="Các lần retry">
+          <path class="axis" d="M25 140H300M25 20V140"/>
+          <g fill="#ffbd59">
+            <rect x="45" y="105" width="22" height="35" rx="5"/><rect x="85" y="65" width="22" height="75" rx="5"/>
+            <rect x="125" y="112" width="22" height="28" rx="5"/><rect x="165" y="35" width="22" height="105" rx="5"/>
+            <rect x="205" y="89" width="22" height="51" rx="5"/><rect x="245" y="52" width="22" height="88" rx="5"/>
+          </g>
+        </svg>
+        <p><span class="amber">retry ↑</span> → xác suất giao tương lai ↓</p>
+      </article>
+    </div>
+    <footer><span>Feature window Δ = 4 s</span><span>02 / 09</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><div><div class="eyebrow">Bước 3 · Chống rò rỉ thời gian</div><h2>Quá khứ tạo feature, <span class="amber">tương lai tạo nhãn</span></h2></div><span class="step">03</span></header>
+    <div class="content">
+      <div class="timeline">
+        <div class="window past">
+          <div><span class="pill accent">[t−4, t)</span><h3 style="margin-top:15px">FEATURE</h3></div>
+          <div class="feature-list">
+            <span class="pill">RSSI level</span><span class="pill">RSSI slope</span><span class="pill">retry rate</span>
+          </div>
+        </div>
+        <div class="anchor"><span class="pill">anchor t</span><div class="anchor-line"></div></div>
+        <div class="window future">
+          <div><span class="pill amber">[t, t+4)</span><h3 style="margin-top:15px">LABEL</h3></div>
+          <div>
+            <div class="formula"><span class="amber">successes</span> / trials</div>
+            <p class="caption">PDR per-attempt trong cửa sổ kế tiếp</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer><span>Không fit retry và PDR trong cùng một cửa sổ</span><span>03 / 09</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><div><div class="eyebrow">Bước 4 · Môi trường</div><h2>FANET trong <span class="accent">ns-3.45</span></h2></div><span class="step">04</span></header>
+    <div class="content">
+      <div class="specs">
+        <div class="spec"><strong class="accent">30</strong><span>UAV</span></div>
+        <div class="spec"><strong>2000×2000</strong><span>mặt phẳng XY (m)</span></div>
+        <div class="spec"><strong>100–600</strong><span>độ cao (m)</span></div>
+        <div class="spec"><strong>15–30</strong><span>vận tốc (m/s)</span></div>
+        <div class="spec"><strong>300 s</strong><span>warm-up 30 s</span></div>
+        <div class="spec"><strong>19 dBm</strong><span>Tx power</span></div>
+      </div>
+    </div>
+    <footer><span>Gauss–Markov · LogDistance n=2.2 · Nakagami 8/5/3</span><span>04 / 09</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><div><div class="eyebrow">Bước 5 · Dataset</div><h2>Mỗi dòng là <span class="magenta">một link có hướng × một cửa sổ</span></h2></div><span class="step">05</span></header>
+    <div class="content">
+      <div>
+        <div class="pipeline">
+          <div class="node"><div><strong>758.301</strong><span>dòng toàn P2</span></div></div>
+          <div class="arrow">→</div>
+          <div class="node"><div><strong>(src,dst,t)</strong><span>khóa quan sát</span></div></div>
+          <div class="arrow">→</div>
+          <div class="node"><div><strong>x = 3 feature</strong><span>level · slope · retry</span></div></div>
+          <div class="arrow">→</div>
+          <div class="node"><div><strong>y = k / n</strong><span>future successes / trials</span></div></div>
+        </div>
+        <div class="card flat formula" style="margin-top:28px;text-align:center">
+          seed, t, src, dst, dist,
+          <span class="accent">rssi_level</span>,
+          <span class="magenta">rssi_slope</span>,
+          <span class="amber">retry_rate</span>,
+          trials_future, fails_future
+        </div>
+      </div>
+    </div>
+    <footer><span>Không nhị phân hóa PDR · giữ nguyên số trial</span><span>05 / 09</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><div><div class="eyebrow">Bước 6 · Calibration</div><h2>Đóng băng scale bằng <span class="accent">5 seed riêng</span></h2></div><span class="step">06</span></header>
+    <div class="content grid2">
+      <div class="card">
+        <h3>RSSI level</h3>
+        <div class="range" data-lo="p20 = −88.61 dBm" data-hi="p80 = −84.78 dBm"><i class="clip-left"></i><i class="clip-right"></i></div>
+        <h3 style="margin-top:52px">RSSI slope</h3>
+        <div class="range" data-lo="p20 = −0.379 dB/s" data-hi="p80 = +0.376 dB/s"><i class="clip-left"></i><i class="clip-right"></i></div>
+      </div>
+      <div class="card">
+        <div class="formula"><span class="accent">s</span> = clip((x − p20) / (p80 − p20), 0, 1)</div>
+        <div style="height:28px"></div>
+        <div class="formula"><span class="amber">s<sub>mac</sub></span> = 1 − retry_rate</div>
+        <div style="height:28px"></div>
+        <p class="lead">Scale chỉ dùng để trình bày/deploy. <strong style="color:white">GLM fit trên feature thô.</strong></p>
+      </div>
+    </div>
+    <footer><span>frozen/normalization.json · không ghi đè</span><span>06 / 09</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><div><div class="eyebrow">Bước 7 · Fit trọng số</div><h2>Binomial GLM trên <span class="green">24 seed fit</span></h2></div><span class="step">07</span></header>
+    <div class="content grid2">
+      <div class="card">
+        <div class="formula">
+          z = β₀ + β₁·<span class="accent">RSSI</span><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ β₂·<span class="magenta">slope</span><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ β₃·<span class="amber">retry</span><br>
+          p̂ = 1 / (1 + e<sup>−z</sup>)
+        </div>
+      </div>
+      <div style="display:grid;gap:12px">
+        <div class="card flat" style="display:flex;justify-content:space-between;gap:12px;align-items:center">
+          <span class="caption">PCA · PC1 + PC2</span><strong class="green">93.14% &lt; 95%</strong>
+        </div>
+        <div class="coef"><span>RSSI level</span><div class="bar"><i style="width:46%;background:var(--cyan)"></i></div><strong class="accent">+0.3347</strong></div>
+        <div class="coef"><span>RSSI slope</span><div class="bar"><i style="width:66%;background:var(--magenta)"></i></div><strong class="magenta">+0.7196</strong></div>
+        <div class="coef"><span>retry rate</span><div class="bar"><i style="width:100%;background:var(--amber)"></i></div><strong class="amber">−1.8517</strong></div>
+        <div class="card flat" style="display:flex;justify-content:space-between;gap:12px;align-items:center">
+          <span class="caption">Covariance</span><strong>cluster-robust / seed</strong>
+        </div>
+        <div class="card flat" style="display:flex;justify-content:space-between;gap:12px;align-items:center">
+          <span class="caption">Độ ổn định</span><strong>bootstrap 200×</strong>
+        </div>
+      </div>
+    </div>
+    <footer><span><code>python3 analysis/fit/p5a_fit.py data/train</code></span><span>07 / 09</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><div><div class="eyebrow">Bước 8 · Đổi sang dạng trình bày</div><h2>Ba trọng số <span class="accent">cùng chiều tốt</span></h2></div><span class="step">08</span></header>
+    <div class="content donut-wrap">
+      <div class="donut" aria-label="Biểu đồ trọng số LinkScore"></div>
+      <div class="legend">
+        <div class="legend-item"><i style="background:var(--cyan)"></i><div><h3>RSSI level</h3><span>a</span></div><strong class="accent">0.349</strong></div>
+        <div class="legend-item"><i style="background:var(--magenta)"></i><div><h3>RSSI slope</h3><span>b</span></div><strong class="magenta">0.148</strong></div>
+        <div class="legend-item"><i style="background:var(--amber)"></i><div><h3>MAC quality</h3><span>c · = 1 − retry</span></div><strong class="amber">0.503</strong></div>
+        <div class="card flat formula">LinkScore = a·s<sub>RSSI</sub> + b·s<sub>slope</sub> + c·s<sub>mac</sub></div>
+      </div>
+    </div>
+    <footer><span>Dạng (a,b,c) chỉ để trình bày · controller dùng raw logit</span><span>08 / 09</span></footer>
+  </section>
+
+  <section class="slide">
+    <header><div><div class="eyebrow">Toàn bộ quy trình</div><h2>Bảy bước để có <span class="accent">trọng số defend được</span></h2></div><span class="step">09</span></header>
+    <div class="content">
+      <div>
+        <div class="summary-flow">
+          <div class="summary-step"><b>1</b><strong>Định nghĩa</strong><span>3 metric + nhãn tương lai</span></div>
+          <div class="summary-step"><b>2</b><strong>Kiểm thiết bị</strong><span>P0 RSSI/retry</span></div>
+          <div class="summary-step"><b>3</b><strong>Đóng config</strong><span>P1 topology</span></div>
+          <div class="summary-step"><b>4</b><strong>Chạy seed</strong><span>P2 · 35/35 PASS</span></div>
+          <div class="summary-step"><b>5</b><strong>Freeze</strong><span>normalization + split</span></div>
+          <div class="summary-step"><b>6</b><strong>Fit GLM</strong><span>cluster + bootstrap</span></div>
+          <div class="summary-step"><b>7</b><strong>Holdout</strong><span>không refit</span></div>
+        </div>
+        <div class="card" style="margin-top:28px;text-align:center">
+          <div class="formula">
+            <span class="accent">a = 0.349</span>
+            &nbsp;·&nbsp;
+            <span class="magenta">b = 0.148</span>
+            &nbsp;·&nbsp;
+            <span class="amber">c = 0.503</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer><span>Nguồn: frozen/*.json · reports/P0…P5b · figures/</span><span>09 / 09</span></footer>
+  </section>
+
+</main>
+
+<div class="progress" id="progress"></div>
+<nav class="nav" aria-label="Điều hướng slide">
+  <button id="prev" aria-label="Slide trước">←</button>
+  <button id="next" aria-label="Slide sau">→</button>
+</nav>
+
+<script>
+  const slides = [...document.querySelectorAll(".slide")];
+  const progress = document.getElementById("progress");
+  let current = 0;
+
+  function show(index) {
+    current = Math.max(0, Math.min(slides.length - 1, index));
+    slides.forEach((slide, i) => slide.classList.toggle("active", i === current));
+    progress.style.width = `${((current + 1) / slides.length) * 100}%`;
+    history.replaceState(null, "", `#${current + 1}`);
+  }
+
+  document.getElementById("prev").addEventListener("click", () => show(current - 1));
+  document.getElementById("next").addEventListener("click", () => show(current + 1));
+  addEventListener("keydown", (event) => {
+    if (["ArrowRight", "PageDown", " "].includes(event.key)) { event.preventDefault(); show(current + 1); }
+    if (["ArrowLeft", "PageUp"].includes(event.key)) { event.preventDefault(); show(current - 1); }
+    if (event.key === "Home") show(0);
+    if (event.key === "End") show(slides.length - 1);
+    if (event.key.toLowerCase() === "f") document.documentElement.requestFullscreen?.();
+  });
+  let touchX = 0;
+  addEventListener("touchstart", event => touchX = event.changedTouches[0].screenX, {passive:true});
+  addEventListener("touchend", event => {
+    const dx = event.changedTouches[0].screenX - touchX;
+    if (Math.abs(dx) > 50) show(current + (dx < 0 ? 1 : -1));
+  }, {passive:true});
+  show(Number(location.hash.slice(1)) - 1 || 0);
+</script>
+</body>
+</html>
