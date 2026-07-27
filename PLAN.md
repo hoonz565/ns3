@@ -393,6 +393,20 @@ link biên); và
 **corr(rssi_level, retry_rate) = −0.79** toàn tập — mô hình chỉ-retry (AR
 baseline) trong bảng đối chứng là phép thử quyết định, không phải tuỳ chọn.
 
+**Phép so raw-vs-clip của quy tắc 5 chủ yếu kiểm tra đuôi TRÊN — giới hạn
+của chính quy tắc 5 trong cấu hình này** (thêm 2026-07-27, P4). Bản
+clip-rộng p5/p95 chỉ nới dải về phía dưới **0.59 dB** (p20 −88.61 → p5
+−89.20) nhưng nới phía trên **4.88 dB** (p80 −84.78 → p95 −79.90): đuôi
+dưới không có chỗ nới vì mẫu dưới sàn detect không tồn tại (kiểm duyệt vật
+lý ở đoạn trên). Đo trên 35 seed (P4, `data/p4_norm_stats.json`): chuyển
+p20/p80 → p5/p95 gỡ ghim-1 ở bin 200–400 m từ 82% xuống 9%, nhưng bin
+≥800 m vẫn ghim-0 ở 26% (từ 74%) và bin 0–200 m vẫn ghim-1 ở 91% (từ
+100%). Vậy nếu bản clip-rộng cải thiện khả năng dự đoán, phần cải thiện
+đó nói về biên TRÊN (link tốt gần); nó không nói gì về biên DƯỚI — vùng
+link sắp chết mà công thức cần phân biệt nhất — vì ở đó không tồn tại dữ
+liệu để nới. Khai báo thẳng trong paper thay vì để phép so mang tiếng
+"kiểm tra đủ hai đuôi".
+
 ---
 
 ## P6 — Kiểm chứng mức đường đi (Tầng B)
