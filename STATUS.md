@@ -7,17 +7,21 @@ Cập nhật lần cuối: 2026-07-27
 
 ## Phase hiện tại
 
-**P3 HOÀN TẤT — CHỜ DUYỆT SANG P4. `frozen/normalization.json` đã đóng
-băng từ 105 869 dòng của đúng 5 seed calib (p20/p80 `rssi_level` =
-−88.6141/−84.7784 dBm, `rssi_slope` = −0.3794/+0.3761 dB/s; p5/p95 ghi kèm
-chỉ để P5 so bản clip rộng; `retry_rate` ngưỡng vật lý [0,1], không
-percentile). `gateNearQMax` hiệu chuẩn lại 0.35 → 0.38 từ phân bố 35 điểm.
-Ba mục chuẩn bị P5 đã vào PLAN.md. KHÔNG fit gì. Báo cáo:
-`reports/P3-calibration.md`.**
+**P4 HOÀN TẤT — CHỜ DUYỆT SANG P5. Holdout chốt TRƯỚC khi nhìn dữ liệu:
+`frozen/split.json` = seeds 6–29 fit / 30–35 holdout (commit `7d7f17534`
+đứng trước mọi việc khác). Normalization đóng băng đã áp lên toàn bộ
+758 301 dòng (`rows_norm.csv` mỗi seed, cột thô nguyên vẹn); ghim biên đo
+cho cả hai bản clip. Cổng VIF ĐẠT: 2.707 / 1.000 / 2.707 < 5. Hồ sơ cổng
+35 seed đồng nhất ở 0.38 (giá trị đo trùng khít; một phiên bản check_gates
+chấm cả hai batch — diff giữa hai SHA rỗng). Manifest mang bộ ba khoá so
+sánh (`binary_sha256`, `config_sim_sha256`, `sim_params_sha256`) — ngoại
+lệ "config hash của eval sẽ khác" đã gỡ hẳn. KHÔNG fit, KHÔNG PCA. Báo
+cáo: `reports/P4-dataset.md`.**
 
-P4 kế tiếp (cần duyệt): áp normalization đóng băng lên `data/train`, kiểm
-VIF, chia 30/5 theo seed. P5 sau đó làm theo thứ tự mới trong PLAN.md:
-**PCA trước, fit sau, rồi thang hiệu chỉnh attenuation.**
+P5 kế tiếp (cần duyệt), thứ tự đã chốt trong PLAN.md: **Bước 0 PCA → GLM
+trên feature THÔ, tập fit 24 seed → thang hiệu chỉnh attenuation**;
+scatter/R² ngoài mẫu trên holdout 30–35; so raw vs clip(p20/p80) vs
+clip(p5/p95); bảng đối chứng có AR baseline (chỉ-retry) và LET hình học.
 
 ## Đã hoàn thành
 
@@ -49,10 +53,24 @@ VIF, chia 30/5 theo seed. P5 sau đó làm theo thứ tự mới trong PLAN.md:
   `rssi_n ≥ 20`" đã gỡ); CLAUDE.md nhận đoạn cấu tạo kênh (quy tắc 11) và
   lệnh cấm lọc theo `rssi_n` (mục Acceptance gate, cạnh lệnh cấm lọc theo
   trials).
+- **P4 — dataset huấn luyện** (`reports/P4-dataset.md`): `frozen/split.json`
+  chốt trước dữ liệu (24 fit / 6 holdout); `rows_norm.csv` toàn 35 seed
+  (thô + `s_rssi,s_slope,s_mac` từ cặp p20/p80; s_mac rỗng giữ rỗng);
+  VIF ĐẠT; hồ sơ cổng đồng nhất 0.38; `run_manifest.py` thêm
+  `sim_params_sha256` (meta.json, augment sau-run, móc vào runner) +
+  `config_sim_sha256` (conf bỏ `gate*`/`seeds*`/`rHalfM`), backfill 35
+  manifest — mỗi khoá một giá trị duy nhất toàn dataset; conf nhận đoạn
+  "near-q ở 0.38 chỉ bắt bão hoà NẶNG, bộ dò chính là degree"; PLAN.md P5
+  Limitations nhận mục bất đối xứng p5/p95 (nới 0.59 dB dưới / 4.88 dB
+  trên) kèm số ghim đo được.
 
 ## Đang vướng
 
-**Chờ duyệt sang P4.** Không có việc để ngỏ trong phạm vi P3.
+**Chờ duyệt sang P5.** Không có việc để ngỏ trong phạm vi P4. Hai điểm
+treo đã ghi cho phase sau (chi tiết `reports/P4-dataset.md` Bất thường):
+`s_rssi` triển khai gần nhị phân ngoài 400–800 m (chuyện của P8, không đổi
+frozen bây giờ); phần vượt chỉ định `config_sim_sha256` chờ anh/chị bác
+hoặc giữ.
 
 ## Quyết định đã chốt
 
@@ -65,10 +83,19 @@ VIF, chia 30/5 theo seed. P5 sau đó làm theo thứ tự mới trong PLAN.md:
 - **`gateNearQMax` = 0.38** (= mean-calib + 5 SD-toàn-tập = mean-35-seed
   + ~4.5 SD, cách max quan sát 0.326 ~2.4 SD). Vai trò: cổng SỨC KHOẺ VẬN
   HÀNH — cùng chế độ tranh chấp với batch đã duyệt — không phải cổng chất
-  lượng dữ liệu (vai trò đó thuộc degree); vẫn đọc liên hợp với degree.
-  Hệ quả khai trước: `config_sha256` của batch eval (P10) sẽ khác batch
-  train vì đổi hằng số cổng — khác biệt chỉ ở phía phân tích (`gate*` là
-  "của Python", trơ với binary), không phải lệch provenance.
+  lượng dữ liệu (vai trò đó thuộc degree). **Ở 0.38 near-q chỉ bắt bão hoà
+  NẶNG** (run 1: 0.680; run 2 bão hoà nhẹ 0.343 giờ PASS); bộ dò chính là
+  DEGREE (cổng 4.0 cách mean calib 9.7 SD, bắt cả run 1 degree 1.79 lẫn
+  run 2 degree 3.82). "near-q PASS" chỉ đọc được là "không bão hoà nặng".
+- **`frozen/split.json` bất biến, chốt TRƯỚC khi nhìn dữ liệu**: seeds
+  6–29 fit (24) / 30–35 holdout (6), quy tắc cố định theo số seed. P5 fit
+  + chọn mô hình trên fit, scatter/R² ngoài mẫu trên holdout; `data/eval`
+  vẫn nguyên vẹn tới P10.
+- **Khoá so sánh giữa các batch = BỘ BA (`binary_sha256`,
+  `config_sim_sha256`, `sim_params_sha256`)** (P4). Ngoại lệ P3
+  "config_sha256 của eval sẽ khác vì key gate" ĐÃ GỠ: đổi ngưỡng cổng
+  không đổi `config_sim_sha256` (kiểm chứng: conf 0.35 và 0.38 cùng hash).
+  Eval hợp lệ ⟺ bộ ba trùng train. `config_sha256` cũ giữ để so lịch sử.
 - **P5 mở màn bằng phân tích chiều (PCA)** trên ba feature z-score, toàn
   tập 35 seed, trước mọi GLM; >95% phương sai ở 2 thành phần đầu = công
   thức thừa một số hạng, phải nói thẳng trong paper.
@@ -97,6 +124,21 @@ VIF, chia 30/5 theo seed. P5 sau đó làm theo thứ tự mới trong PLAN.md:
 
 ## Sự thật đã đo, ghi để khỏi suy lại
 
+- **VIF tập fit 24 seed (thô): level 2.707 / slope 1.000 / retry 2.707**
+  — toàn bộ VIF của level/retry từ corr(level, retry) = −0.794 (trùng
+  toàn tập −0.793); slope trực giao. SD: 3.06 dBm / 0.582 dB/s / 0.344.
+- **Ghim biên clip (758 301 dòng)**: cặp triển khai p20/p80 ghim `s_rssi`
+  100% ở 0–200 m, 82% ở 200–400 m (về 1) và 74% ở ≥800 m (về 0) — chỉ còn
+  phân biệt trong 400–800 m; bản p5/p95 gỡ biên trên (82→9%) nhưng biên
+  dưới còn 26% (sàn detect). `s_mac`: 33% cửa sổ retry = 1 toàn tập,
+  90.6% ở ≥800 m — retry hết phương sai trong vùng chết. Đầy đủ:
+  `data/p4_norm_stats.json`.
+- **Bộ ba khoá dataset P2**: binary `15198a5fc9…`, config_sim
+  `3e4481e7c04f…`, sim_params `0c94836c1d77…` — mỗi khoá đúng một giá trị
+  trên cả 35 manifest. `meta.json` chỉ in ~20 tham số (thiếu `gm*`,
+  `nakagami*`, `exponent`, `frameRetryLimit`...) — vì thế cần
+  `config_sim_sha256` đi kèm; scenario Tier 3 (P8) phải in ĐỦ tham số
+  hiệu dụng vào meta.json ngay từ đầu.
 - **Percentile đóng băng** (105 869 dòng calib): level p5/p20/p80/p95 =
   −89.20/−88.61/−84.78/−79.90 dBm (dải p80−p20 = 3.84 dB); slope =
   −0.848/−0.379/+0.376/+0.845 dB/s (gần đối xứng — dải bất đối xứng nếu
@@ -140,4 +182,4 @@ VIF, chia 30/5 theo seed. P5 sau đó làm theo thứ tự mới trong PLAN.md:
 `frozen/weights.json` (việc của P5). `data/eval/` (RỖNG, cưỡng chế bằng
 `run_tests.sh` tới P10). Chưa fit gì, chưa PCA gì — P5 làm cả hai theo thứ
 tự mới. Dataset P2 đóng: `data/calib/` (P3 đã dùng xong), `data/train/`
-(P4/P5 dùng).
+(P5 fit trên seeds 6–29, holdout 30–35 chỉ để validate — `frozen/split.json`).
