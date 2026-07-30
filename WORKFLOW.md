@@ -269,3 +269,45 @@ Kiểu thứ nhất nguy hiểm nhất vì nó **im lặng**. Ba kiểu kia bạ
 | Khi đổi hướng | Sửa PLAN.md **trước**, rồi mới bảo agent làm |
 
 Điểm cuối quan trọng: nếu bạn đổi ý giữa chừng mà không sửa PLAN.md, agent sẽ tiếp tục đọc bản cũ và làm theo hướng cũ. Plan là nguồn chân lý, không phải trí nhớ của bạn.
+
+---
+
+## 11. Campaign dataset nhiều scenario
+
+Chạy tương tác:
+
+```bash
+./scripts/run_campaign.sh
+```
+
+Hoặc truyền sẵn tham số:
+
+```bash
+./scripts/run_campaign.sh \
+  --scenarios 1000 \
+  --seeds 10 \
+  --workers auto \
+  --out dataset_1000x10 \
+  --yes
+```
+
+Resume sau khi dừng/mất điện:
+
+```bash
+./scripts/run_campaign.sh --out dataset_1000x10 --resume --workers auto
+```
+
+Resume bỏ qua seed `PASS` còn đủ output và tự đưa seed `FAILED`,
+`INTERRUPTED` hoặc thiếu output trở lại global queue.
+
+Acceptance gates được bật mặc định cho campaign thật. Chỉ khi smoke/debug
+ngắn mới dùng `--skip-gates`; kết quả đó không được coi là dataset đã duyệt.
+
+Parent gọi ns-3 sinh mỗi `scenario_xxxx/scenario.json` đúng một lần, rồi đưa
+toàn bộ cặp `(scenario, seed)` vào một dynamic queue. Worker chỉ ghi
+`seed_xxxx/`; parent là bên duy nhất ghi `summary.csv`, `campaign.log`,
+`progress.json`, `scenario_summary.json` và `campaign_summary.json`.
+Heartbeat thô nằm trong `seed/log.txt`; terminal chỉ hiện dashboard worker,
+overall progress và ETA. `--workers auto` lấy min giữa `CPU-1` và RAM khả
+dụng/1 GiB; có thể ép bằng `--workers 8`. Ctrl+C terminate toàn bộ process
+con trước khi thoát.

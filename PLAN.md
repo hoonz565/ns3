@@ -84,10 +84,10 @@ Nếu dataset huấn luyện tính RSSI bằng trung bình cửa sổ mà node t
 
 | Nhóm | Tham số | Giá trị | Căn cứ |
 |---|---|---|---|
-| Không gian | Diện tích | 2000×2000×500 m (cao 100–600) | Khớp paper FANET 2026; bậc TB ~6 neighbor |
-| | Số node | 30 | |
+| Không gian | Diện tích | X,Y Uniform[1000,3000) m mỗi scenario; cao Uniform[100,600) m mỗi node | Đa dạng mật độ và hình học |
+| | Số node | Discrete Uniform[15,90] mỗi scenario | |
 | Di động | Model | `GaussMarkovMobilityModel` | Chuẩn de-facto FANET |
-| | Alpha | 0.85 | Template FANET ns-3 |
+| | Alpha | Uniform[0.4,0.95) mỗi scenario | Đa dạng mức nhớ của chuyển động |
 | | MeanVelocity | Uniform[15, 30] m/s | Giữa dải các paper (5–60) |
 | | **MeanPitch** | **Uniform[−0.05, +0.05]** | Template phổ biến để `Min=Max=0.05` → mọi UAV leo mãi rồi dán vào trần |
 | | NormalVelocity | Normal[0, var 2.0, bound 4.0] | Template để var = 0 → tốc độ không dao động |
@@ -95,7 +95,7 @@ Nếu dataset huấn luyện tính RSSI bằng trung bình cửa sổ mà node t
 | PHY | Chuẩn | 802.11a, 5.18 GHz | |
 | | Rate manager | `ConstantRateWifiManager`, 6 Mbps | Rate adaptation che mất tín hiệu cần đo |
 | | **`FrameRetryLimit`** | **2** (= dot11ShortRetryLimit; `MaxSsrc`/`MaxSlrc` cũ đã OBSOLETE từ ns-3.44) | **Quyết định toàn hệ thống, áp cả Tier 2 lẫn Tier 3** (P2, 2026-07-27): (i) retry trong cùng frame tương quan — L=7 đếm chuỗi 7 thất bại tương quan như 7 phép thử iid, GLM khai quá thông tin ~√5, L=2 chặn ở ~√2; (ii) ở tốc độ FANET retry dai dẳng phản tác dụng — topology đổi trước khi chuỗi thử xong. Đo được ở L=7: khuếch đại ARQ ×5.37 làm bão hoà kênh |
-| | **TxPower** | **19 dBm** | Chọn theo **degree đo được**, không theo công thức link budget. Cho d(PDR 0.5) = **625 m**, degree **6.14** — cả hai đo ở P1 |
+| | **TxPower** | **Uniform[15,23) dBm mỗi scenario** | 19 dBm giữ vai trò nominal reference lịch sử |
 | | **`MinimumRssi`** | **−101 dBm** | Mặc định −82 dBm là **sàn cứng trên RSSI**, cao hơn giới hạn do nhiễu 7 dB. Hạ về −101 thì ràng buộc chuyển sang `Threshold` (4 dB SNR). Ở degree cố định nó **không mua thêm tầm phủ** — lý do là (a) gỡ kiểm duyệt trên chính feature RSSI, (b) mép link dịch theo can nhiễu thay vì đứng yên. **Khai báo trong paper** |
 | | **Degree trung bình** | **6.14** | **Đo được** (P1, tỉ lệ nhận beacon ≥ 0.5 trong 5 s), cô lập 0.6%. Kiểm chứng bằng đếm hình học từ vị trí ghi được, không dùng beacon: ~6.0. Đừng tính bằng công thức mật độ — hộp cao 500 m so với tầm phủ 625 m nên công thức 2D và 3D lệch gần 2× |
 | | **Động lực học độ cao** | quasi-2D | Mỗi node ở nguyên lát cao ~107 m suốt run 300 s (trung vị z-span; **100%** node quét dưới nửa dải 500 m). Vận động dọc đóng góp trung vị **0.7%** vào thay đổi khoảng cách làm link đổi trạng thái (3.2% trước khi chiếu). Tức: **vị trí** 3D phân tầng giữa các node, động lực học do chuyển động ngang |
@@ -104,7 +104,8 @@ Nếu dataset huấn luyện tính RSSI bằng trung bình cửa sổ mà node t
 | | **Nakagami m₀/m₁/m₂** | **8 / 5 / 3** | LoS trên không; 0.75 là kênh đô thị |
 | | **Distance1 / Distance2** | **100 m / 300 m** | Mặc định 80/200 m là thang mặt đất |
 | Thời gian | Sim time | 300 s | |
-| | Seed | **40** (5 calib / 30 train / 5 test) — chốt P2, ~3 phút/seed nên 40 seed ≈ 2 h | Quy tắc 6: cluster-robust cần 30–50 cluster |
+| Tải | Packet rate | Discrete Uniform[4,20] pkt/s/flow mỗi scenario | Đa dạng offered load |
+| | Campaign random | **1.000 scenario × 10 seed = 10.000 run**, split theo scenario | Ưu tiên độ phủ setup; 10 stochastic replication/scenario, `RngRun` duy nhất toàn campaign |
 | Cửa sổ | Δ (feature) | 4 s | Xem P7 — 2 s thì slope chìm trong nhiễu |
 | | τ (nhãn) | 4 s | |
 

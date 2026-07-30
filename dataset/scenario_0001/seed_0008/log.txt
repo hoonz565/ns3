@@ -1,0 +1,20 @@
+sim-config: CANH BAO 10 key co trong registry nhung scenario nay KHONG doc:
+   gateDegreeMin, gateLossMax, gateMidMin, gateNearQMax, gatePinnedMax, gateRetryMin, rHalfM, seedsCalibration, seedsTest, seedsTrain
+   Binh thuong khi mot scenario nap ca file nominal (vi du seedsTrain, gate* la cua Python).
+   NHUNG neu mot tham so vat ly nam trong danh sach nay thi scenario dang chay bang default, khong bang config.
+--- setup thuc te cua seed ---
+  scenario         : 1
+  nodes            : 87
+  area             : 2818.83 x 2097.87 m
+  altitude         : Uniform[100, 600) m
+  speed            : Uniform[15, 30) m/s
+  gm alpha         : 0.701432
+  tx power         : 21.8312 dBm
+  CBR rate         : 14 pkt/s
+  seed             : 8
+  rng run          : 8
+  simulation time  : 300 s
+  output           : /home/hung/workspace/ns3/dataset/scenario_0001/seed_0008
+[heartbeat] scenario=1 seed=8 rngRun=8 sim=10.0/300.0s (3.3%) wall=57.8s rows=1654 probe_attempts=39439 cbr_attempts=0
+[heartbeat] scenario=1 seed=8 rngRun=8 sim=20.0/300.0s (6.7%) wall=117.9s rows=4669 probe_attempts=78587 cbr_attempts=356
+[heartbeat] scenario=1 seed=8 rngRun=8 sim=30.0/300.0s (10.0%) wall=176.5s rows=9209 probe_attempts=117014 cbr_attempts=901

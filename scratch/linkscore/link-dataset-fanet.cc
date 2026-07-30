@@ -1,7 +1,8 @@
 /*
  * P2 — Harness thu du lieu Tier 2 (PLAN.md P2, CLAUDE.md "Three simulation tiers").
  *
- * 30 node Gauss-Markov, BON loai phat tren MOT radio moi node:
+ * 15-90 node Gauss-Markov, setup lay mau moi scenario, BON loai phat tren MOT
+ * radio moi node:
  *
  *   OLSR    chuan, HELLO 2 s. CHI tao tai + dinh tuyen CBR. Khong sua, khong
  *           do, khong bao cao. No dinh tuyen bang hop count nen mu ve
@@ -50,6 +51,7 @@
 #include "ns3/wifi-module.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <deque>
 #include <filesystem>
@@ -74,7 +76,6 @@ constexpr uint16_t ETHERTYPE_BEACON = 0x88b6; // nhu P1
 uint32_t g_N = 0;
 double g_simTime = 300.0;
 double g_labelWin = 4.0;
-double g_warmup = 30.0;
 double g_neighborTtl = 2.0;
 double g_probeInterval = 0.5;
 uint32_t g_probeBytes = 540;
@@ -177,6 +178,7 @@ std::map<int32_t, uint64_t> g_cbrHops;
 
 std::ofstream g_rowsCsv;
 std::ofstream g_posCsv;
+std::chrono::steady_clock::time_point g_wallStart;
 
 double
 NowSec()
@@ -417,7 +419,7 @@ SendBeacon(uint32_t i, uint32_t bytes, double interval)
     g_devices.Get(i)->Send(Create<Packet>(bytes), Mac48Address::GetBroadcast(), ETHERTYPE_BEACON);
     g_beaconSent[i].push_back(NowSec());
     g_count.beaconsSent++;
-    // Jitter tung lan phat (nhu P1): 30 node cung nhip se tu tao collision
+    // Jitter tung lan phat (nhu P1): cac node cung nhip se tu tao collision
     // he thong va no hien ra thanh "link xau" trong ti le nhan beacon.
     const double next = interval * (1.0 + g_jitter->GetValue(-0.05, 0.05));
     Simulator::Schedule(Seconds(next), &SendBeacon, i, bytes, interval);
@@ -595,6 +597,36 @@ SamplePositions(double interval)
     Simulator::Schedule(Seconds(interval), &SamplePositions, interval);
 }
 
+void
+Heartbeat(uint32_t scenarioId,
+          uint32_t seed,
+          uint64_t rngRun,
+          double simTime,
+          double interval)
+{
+    const double now = NowSec();
+    const double wall =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - g_wallStart).count();
+    std::ostringstream line;
+    line << std::fixed << std::setprecision(1) << "[heartbeat] scenario=" << scenarioId
+         << " seed=" << seed << " rngRun=" << rngRun << " sim=" << now << '/' << simTime
+         << "s (" << (simTime > 0.0 ? 100.0 * now / simTime : 100.0) << "%)"
+         << " wall=" << wall << "s rows=" << g_count.rows << " probe_attempts="
+         << g_count.attProbe << " cbr_attempts=" << g_count.attCbr;
+    std::cout << line.str() << std::endl;
+
+    if (now + interval <= simTime + 1e-9)
+    {
+        Simulator::Schedule(Seconds(interval),
+                            &Heartbeat,
+                            scenarioId,
+                            seed,
+                            rngRun,
+                            simTime,
+                            interval);
+    }
+}
+
 /// Xoay bucket tai moi boc B = k*labelWin. Dong ghi tai day co anchor
 /// t = B - labelWin: nhan tu bucket vua dong [t, B), feature tu bucket
 /// truoc [t - labelWin, t) — dong chi ton tai KHI cua so nhan da dong,
@@ -605,103 +637,100 @@ Rotate()
     const double B = NowSec();
     const double t = B - g_labelWin;
 
-    if (t >= g_warmup)
+    const double f0 = B - 2.0 * g_labelWin; // cua so feature [f0, f1)
+    const double f1 = t;
+    for (uint32_t i = 0; i < g_N; ++i)
     {
-        const double f0 = B - 2.0 * g_labelWin; // cua so feature [f0, f1)
-        const double f1 = t;
-        for (uint32_t i = 0; i < g_N; ++i)
+        for (uint32_t j = 0; j < g_N; ++j)
         {
-            for (uint32_t j = 0; j < g_N; ++j)
+            if (i == j)
             {
-                if (i == j)
-                {
-                    continue;
-                }
-                const size_t k = Key(i, j);
-                const Bucket& lab = g_curr[k];
-                const uint32_t trials = lab.attProbe + lab.attCbr;
-                if (trials == 0)
-                {
-                    continue;
-                }
-                if (trials < g_minTrials)
-                {
-                    g_count.rowsDropLowTrials++;
-                    continue;
-                }
-
-                // RSSI tho trong [f0, f1): mean + OLS slope (quy tac 8 —
-                // khong EWMA, khong tien xu ly).
-                double sumT = 0;
-                double sumY = 0;
-                uint32_t n = 0;
-                for (const auto& s : g_rssi[k])
-                {
-                    if (s.t >= f0 && s.t < f1)
-                    {
-                        sumT += s.t;
-                        sumY += s.dbm;
-                        n++;
-                    }
-                }
-                if (n < g_minRssiSamples)
-                {
-                    g_count.rowsDropLowRssi++;
-                    continue;
-                }
-                const double meanT = sumT / n;
-                const double meanY = sumY / n;
-                double sxx = 0;
-                double sxy = 0;
-                for (const auto& s : g_rssi[k])
-                {
-                    if (s.t >= f0 && s.t < f1)
-                    {
-                        sxx += (s.t - meanT) * (s.t - meanT);
-                        sxy += (s.t - meanT) * (s.dbm - meanY);
-                    }
-                }
-                const double slope = (sxx > 0) ? sxy / sxx : 0.0;
-
-                // Kep fail <= attempt tung lop: ack-timeout cua attempt cuoi
-                // cua so co the roi sang bucket sau (truot ~ms tren cua so 4 s).
-                uint32_t fp = std::min(lab.failProbe, lab.attProbe);
-                uint32_t fc = std::min(lab.failCbr, lab.attCbr);
-                if (fp != lab.failProbe || fc != lab.failCbr)
-                {
-                    g_count.failSlipped++;
-                }
-                const uint32_t fails = fp + fc;
-
-                // Feature retry tu cua so truoc. Rong khac 0: khong attempt
-                // thi de trong, KHONG ghi 0 (CLAUDE.md "known traps").
-                const Bucket& fea = g_prev[k];
-                const uint32_t attPast = fea.attProbe + fea.attCbr;
-                const uint32_t failPast =
-                    std::min(fea.failProbe, fea.attProbe) + std::min(fea.failCbr, fea.attCbr);
-
-                const auto& sent = g_beaconSent[i];
-                const size_t nSent = std::lower_bound(sent.begin(), sent.end(), f1) -
-                                     std::lower_bound(sent.begin(), sent.end(), f0);
-
-                const double dist = CalculateDistance(g_anchorPos[i], g_anchorPos[j]);
-
-                g_rowsCsv << g_seed << ',' << t << ',' << i << ',' << j << ',' << dist << ','
-                          << meanY << ',' << slope << ',' << n << ',';
-                if (nSent > 0)
-                {
-                    g_rowsCsv << static_cast<double>(n) / static_cast<double>(nSent);
-                }
-                g_rowsCsv << ',';
-                if (attPast > 0)
-                {
-                    g_rowsCsv << static_cast<double>(failPast) / attPast;
-                }
-                g_rowsCsv << ',' << attPast << ',' << lab.attProbe << ',' << fp << ','
-                          << lab.attCbr << ',' << fc << ',' << trials << ',' << fails << ','
-                          << 1.0 - static_cast<double>(fails) / trials << '\n';
-                g_count.rows++;
+                continue;
             }
+            const size_t k = Key(i, j);
+            const Bucket& lab = g_curr[k];
+            const uint32_t trials = lab.attProbe + lab.attCbr;
+            if (trials == 0)
+            {
+                continue;
+            }
+            if (trials < g_minTrials)
+            {
+                g_count.rowsDropLowTrials++;
+                continue;
+            }
+
+            // RSSI tho trong [f0, f1): mean + OLS slope (quy tac 8 —
+            // khong EWMA, khong tien xu ly).
+            double sumT = 0;
+            double sumY = 0;
+            uint32_t n = 0;
+            for (const auto& s : g_rssi[k])
+            {
+                if (s.t >= f0 && s.t < f1)
+                {
+                    sumT += s.t;
+                    sumY += s.dbm;
+                    n++;
+                }
+            }
+            if (n < g_minRssiSamples)
+            {
+                g_count.rowsDropLowRssi++;
+                continue;
+            }
+            const double meanT = sumT / n;
+            const double meanY = sumY / n;
+            double sxx = 0;
+            double sxy = 0;
+            for (const auto& s : g_rssi[k])
+            {
+                if (s.t >= f0 && s.t < f1)
+                {
+                    sxx += (s.t - meanT) * (s.t - meanT);
+                    sxy += (s.t - meanT) * (s.dbm - meanY);
+                }
+            }
+            const double slope = (sxx > 0) ? sxy / sxx : 0.0;
+
+            // Kep fail <= attempt tung lop: ack-timeout cua attempt cuoi
+            // cua so co the roi sang bucket sau (truot ~ms tren cua so 4 s).
+            uint32_t fp = std::min(lab.failProbe, lab.attProbe);
+            uint32_t fc = std::min(lab.failCbr, lab.attCbr);
+            if (fp != lab.failProbe || fc != lab.failCbr)
+            {
+                g_count.failSlipped++;
+            }
+            const uint32_t fails = fp + fc;
+
+            // Feature retry tu cua so truoc. Rong khac 0: khong attempt
+            // thi de trong, KHONG ghi 0 (CLAUDE.md "known traps").
+            const Bucket& fea = g_prev[k];
+            const uint32_t attPast = fea.attProbe + fea.attCbr;
+            const uint32_t failPast =
+                std::min(fea.failProbe, fea.attProbe) + std::min(fea.failCbr, fea.attCbr);
+
+            const auto& sent = g_beaconSent[i];
+            const size_t nSent = std::lower_bound(sent.begin(), sent.end(), f1) -
+                                 std::lower_bound(sent.begin(), sent.end(), f0);
+
+            const double dist = CalculateDistance(g_anchorPos[i], g_anchorPos[j]);
+
+            g_rowsCsv << g_seed << ',' << t << ',' << i << ',' << j << ',' << dist << ','
+                      << meanY << ',' << slope << ',' << n << ',';
+            if (nSent > 0)
+            {
+                g_rowsCsv << static_cast<double>(n) / static_cast<double>(nSent);
+            }
+            g_rowsCsv << ',';
+            if (attPast > 0)
+            {
+                g_rowsCsv << static_cast<double>(failPast) / attPast;
+            }
+            g_rowsCsv << ',' << attPast << ',' << lab.attProbe << ',' << fp << ',' << lab.attCbr
+                      << ',' << fc << ',' << trials << ',' << fails << ','
+                      << 1.0 - static_cast<double>(fails) / trials << '\n';
+            g_count.rows++;
         }
     }
 
@@ -751,9 +780,14 @@ int
 main(int argc, char* argv[])
 {
     uint32_t seed = 1;
+    uint32_t scenarioId = 1;
+    uint64_t rngRun = 0;
     std::string outDir = "data/smoke/p2-harness/seed-1";
+    std::string scenarioOut;
     std::string configHelp;
     bool allowUnknown = false;
+    bool generateScenarioOnly = false;
+    bool realizedSetup = false;
 
     uint32_t numNodes = 30;
     double simTime = 300.0;
@@ -761,8 +795,15 @@ main(int argc, char* argv[])
     double areaY = 2000.0;
     double altMin = 100.0;
     double altMax = 600.0;
+    bool randomSetup = false;
+    uint32_t numNodesMin = 15;
+    uint32_t numNodesMax = 90;
+    double areaMin = 1000.0;
+    double areaMax = 3000.0;
 
     double gmAlpha = 0.85;
+    double gmAlphaMin = 0.4;
+    double gmAlphaMax = 0.95;
     double gmTimeStep = 0.5;
     double gmVelMin = 15.0;
     double gmVelMax = 30.0;
@@ -778,6 +819,8 @@ main(int argc, char* argv[])
     double gmNormPitchBound = 0.04;
 
     double txPowerDbm = 19.0;
+    double txPowerMin = 15.0;
+    double txPowerMax = 23.0;
     double exponent = 2.2;
     double minRssiDbm = -101.0;
     uint32_t channelNumber = 36;
@@ -798,11 +841,12 @@ main(int argc, char* argv[])
     uint32_t cbrFlows = 6;
     uint32_t cbrBytes = 512;
     uint32_t cbrPps = 8;
+    uint32_t cbrPpsMin = 4;
+    uint32_t cbrPpsMax = 20;
     uint32_t maxQueueDelayMs = 100;
 
     double featureWin = 4.0;
     double labelWin = 4.0;
-    double warmupTime = 30.0;
     uint32_t minRssiSamples = 3;
     uint32_t minTrials = 2;
 
@@ -811,8 +855,17 @@ main(int argc, char* argv[])
              linkscore::FlagInArgv(argc, argv, "--allowUnknownKeys"));
 
     CommandLine cmd(__FILE__);
-    cmd.AddValue("seed", "RngRun", seed);
+    cmd.AddValue("seed", "Seed label written to rows/meta", seed);
+    cmd.AddValue("scenario", "Scenario id; fixes the randomized setup across seeds", scenarioId);
+    cmd.AddValue("rngRun", "Independent ns-3 RngRun; 0 means use seed", rngRun);
     cmd.AddValue("out", "Thu muc ghi rows.csv / positions.csv / meta.json / summary.json", outDir);
+    cmd.AddValue("scenarioOut", "Optional scenario.json output path", scenarioOut);
+    cmd.AddValue("generateScenarioOnly",
+                 "Generate scenarioOut with ns-3 RNG, then exit before simulation",
+                 generateScenarioOnly);
+    cmd.AddValue("realizedSetup",
+                 "Setup values came from a parent-generated scenario.json",
+                 realizedSetup);
     cmd.AddValue("config", "File sim-config (lap lai duoc, file sau ghi de)", configHelp);
     cmd.AddValue("allowUnknownKeys", "Chi canh bao thay vi dung khi config co key la", allowUnknown);
 
@@ -822,7 +875,14 @@ main(int argc, char* argv[])
     cfg.Add(cmd, "areaY", "Chieu Y cua hop (m)", areaY);
     cfg.Add(cmd, "altMin", "Do cao min (m)", altMin);
     cfg.Add(cmd, "altMax", "Do cao max (m)", altMax);
+    cfg.Add(cmd, "randomSetup", "Lay mau setup moi scenario bang UniformRandomVariable", randomSetup);
+    cfg.Add(cmd, "numNodesMin", "So node random min", numNodesMin);
+    cfg.Add(cmd, "numNodesMax", "So node random max", numNodesMax);
+    cfg.Add(cmd, "areaMin", "Canh X/Y random min (m)", areaMin);
+    cfg.Add(cmd, "areaMax", "Canh X/Y random max (m)", areaMax);
     cfg.Add(cmd, "gmAlpha", "Gauss-Markov Alpha", gmAlpha);
+    cfg.Add(cmd, "gmAlphaMin", "Gauss-Markov Alpha random min", gmAlphaMin);
+    cfg.Add(cmd, "gmAlphaMax", "Gauss-Markov Alpha random max", gmAlphaMax);
     cfg.Add(cmd, "gmTimeStep", "Gauss-Markov TimeStep (s)", gmTimeStep);
     cfg.Add(cmd, "gmVelMin", "MeanVelocity min (m/s)", gmVelMin);
     cfg.Add(cmd, "gmVelMax", "MeanVelocity max (m/s)", gmVelMax);
@@ -837,6 +897,8 @@ main(int argc, char* argv[])
     cfg.Add(cmd, "gmNormPitchVar", "NormalPitch variance", gmNormPitchVar);
     cfg.Add(cmd, "gmNormPitchBound", "NormalPitch bound", gmNormPitchBound);
     cfg.Add(cmd, "txPowerDbm", "Cong suat phat (dBm)", txPowerDbm);
+    cfg.Add(cmd, "txPowerMin", "Cong suat phat random min (dBm)", txPowerMin);
+    cfg.Add(cmd, "txPowerMax", "Cong suat phat random max (dBm)", txPowerMax);
     cfg.Add(cmd, "exponent", "So mu path loss", exponent);
     cfg.Add(cmd, "minRssiDbm", "ThresholdPreambleDetectionModel::MinimumRssi (dBm)", minRssiDbm);
     cfg.Add(cmd, "channelNumber", "So kenh 5 GHz", channelNumber);
@@ -858,14 +920,19 @@ main(int argc, char* argv[])
     cfg.Add(cmd, "cbrFlows", "So luong CBR", cbrFlows);
     cfg.Add(cmd, "cbrBytes", "Payload UDP moi goi CBR (B)", cbrBytes);
     cfg.Add(cmd, "cbrPps", "Goi/s moi luong CBR", cbrPps);
+    cfg.Add(cmd, "cbrPpsMin", "Goi/s random min moi luong CBR", cbrPpsMin);
+    cfg.Add(cmd, "cbrPpsMax", "Goi/s random max moi luong CBR", cbrPpsMax);
     cfg.Add(cmd, "maxQueueDelayMs", "WifiMacQueue::MaxDelay (ms)", maxQueueDelayMs);
     cfg.Add(cmd, "featureWin", "Cua so feature Delta (s)", featureWin);
     cfg.Add(cmd, "labelWin", "Cua so nhan tau (s)", labelWin);
-    cfg.Add(cmd, "warmupTime", "Bo dong co anchor t < gia tri nay (s)", warmupTime);
     cfg.Add(cmd, "minRssiSamples", "So mau RSSI toi thieu moi dong", minRssiSamples);
     cfg.Add(cmd, "minTrials", "So trial toi thieu moi dong", minTrials);
     cmd.Parse(argc, argv);
-    cfg.Finish();
+    // Dataset log chi in setup da random theo seed; provenance day du nam
+    // trong meta.json/run_manifest.json.
+    // Worker log giu danh sach key khong dung cho provenance gate; generator
+    // scenario khong can lap lai canh bao nay 1.000 lan.
+    cfg.Finish(false, !generateScenarioOnly);
 
     if (featureWin != labelWin)
     {
@@ -882,13 +949,104 @@ main(int argc, char* argv[])
     }
 
     RngSeedManager::SetSeed(1);
-    RngSeedManager::SetRun(seed);
+    RngSeedManager::SetRun(scenarioId);
+
+    constexpr int64_t SETUP_RNG_STREAM = 0;
+    if (randomSetup)
+    {
+        NS_ABORT_MSG_UNLESS(numNodesMin <= numNodesMax, "numNodesMin > numNodesMax");
+        NS_ABORT_MSG_UNLESS(areaMin < areaMax, "areaMin >= areaMax");
+        NS_ABORT_MSG_UNLESS(altMin < altMax, "altMin >= altMax");
+        NS_ABORT_MSG_UNLESS(gmVelMin < gmVelMax, "gmVelMin >= gmVelMax");
+        NS_ABORT_MSG_UNLESS(gmAlphaMin < gmAlphaMax, "gmAlphaMin >= gmAlphaMax");
+        NS_ABORT_MSG_UNLESS(txPowerMin < txPowerMax, "txPowerMin >= txPowerMax");
+        NS_ABORT_MSG_UNLESS(cbrPpsMin <= cbrPpsMax, "cbrPpsMin > cbrPpsMax");
+
+        Ptr<UniformRandomVariable> setup =
+            CreateObjectWithAttributes<UniformRandomVariable>("Stream",
+                                                               IntegerValue(SETUP_RNG_STREAM));
+        numNodes = setup->GetInteger(numNodesMin, numNodesMax);
+        areaX = setup->GetValue(areaMin, areaMax);
+        areaY = setup->GetValue(areaMin, areaMax);
+        gmAlpha = setup->GetValue(gmAlphaMin, gmAlphaMax);
+        txPowerDbm = setup->GetValue(txPowerMin, txPowerMax);
+        cbrPps = setup->GetInteger(cbrPpsMin, cbrPpsMax);
+
+        NS_ABORT_MSG_UNLESS(numNodes >= numNodesMin && numNodes <= numNodesMax,
+                            "random numNodes ngoai dai");
+        NS_ABORT_MSG_UNLESS(areaX >= areaMin && areaX < areaMax && areaY >= areaMin &&
+                                areaY < areaMax,
+                            "random area ngoai dai");
+        NS_ABORT_MSG_UNLESS(gmAlpha >= gmAlphaMin && gmAlpha < gmAlphaMax,
+                            "random gmAlpha ngoai dai");
+        NS_ABORT_MSG_UNLESS(txPowerDbm >= txPowerMin && txPowerDbm < txPowerMax,
+                            "random txPower ngoai dai");
+        NS_ABORT_MSG_UNLESS(cbrPps >= cbrPpsMin && cbrPps <= cbrPpsMax,
+                            "random cbrPps ngoai dai");
+    }
+
+    if (rngRun == 0)
+    {
+        rngRun = seed;
+    }
+    RngSeedManager::SetRun(rngRun);
+
+    const bool setupWasRandomized = randomSetup || realizedSetup;
+    std::cout << (generateScenarioOnly ? "--- setup thuc te cua scenario ---\n"
+                                      : "--- setup thuc te cua seed ---\n")
+              << "  scenario         : " << scenarioId << '\n'
+              << "  nodes            : " << numNodes << '\n'
+              << "  area             : " << areaX << " x " << areaY << " m\n"
+              << "  altitude         : Uniform[" << altMin << ", " << altMax << ") m\n"
+              << "  speed            : Uniform[" << gmVelMin << ", " << gmVelMax << ") m/s\n"
+              << "  gm alpha         : " << gmAlpha << '\n'
+              << "  tx power         : " << txPowerDbm << " dBm\n"
+              << "  CBR rate         : " << cbrPps << " pkt/s\n";
+    if (!generateScenarioOnly)
+    {
+        std::cout << "  seed             : " << seed << '\n'
+                  << "  rng run          : " << rngRun << '\n'
+                  << "  simulation time  : " << simTime << " s\n"
+                  << "  output           : " << outDir << '\n';
+    }
+    std::cout << std::flush;
+
+    NS_ABORT_MSG_IF(generateScenarioOnly && scenarioOut.empty(),
+                    "--generateScenarioOnly requires --scenarioOut");
+    if (!scenarioOut.empty())
+    {
+        const std::filesystem::path scenarioPath(scenarioOut);
+        if (scenarioPath.has_parent_path())
+        {
+            std::filesystem::create_directories(scenarioPath.parent_path());
+        }
+        std::ofstream scenarioJson(scenarioPath);
+        NS_ABORT_MSG_UNLESS(scenarioJson, "Khong ghi duoc scenarioOut=" << scenarioOut);
+        scenarioJson << std::fixed << std::setprecision(6) << "{\n"
+                     << "  \"scenario_id\": " << scenarioId << ",\n"
+                     << "  \"generator\": \"ns3::UniformRandomVariable\",\n"
+                     << "  \"setup_rng_stream\": " << SETUP_RNG_STREAM << ",\n"
+                     << "  \"num_nodes\": " << numNodes << ",\n"
+                     << "  \"area_x_m\": " << areaX << ",\n"
+                     << "  \"area_y_m\": " << areaY << ",\n"
+                     << "  \"altitude_min_m\": " << altMin << ",\n"
+                     << "  \"altitude_max_m\": " << altMax << ",\n"
+                     << "  \"speed_min_mps\": " << gmVelMin << ",\n"
+                     << "  \"speed_max_mps\": " << gmVelMax << ",\n"
+                     << "  \"gm_alpha\": " << gmAlpha << ",\n"
+                     << "  \"tx_power_dbm\": " << txPowerDbm << ",\n"
+                     << "  \"packet_rate_pps\": " << cbrPps << "\n"
+                     << "}\n";
+    }
+    if (generateScenarioOnly)
+    {
+        return 0;
+    }
 
     g_N = numNodes;
     g_seed = seed;
     g_simTime = simTime;
     g_labelWin = labelWin;
-    g_warmup = warmupTime;
     g_neighborTtl = neighborTtl;
     g_probeInterval = probeInterval;
     g_probeBytes = probeBytes;
@@ -1075,8 +1233,7 @@ main(int argc, char* argv[])
         OnOffHelper onoff("ns3::UdpSocketFactory", InetSocketAddress(ifaces.GetAddress(d), port));
         onoff.SetConstantRate(DataRate(static_cast<uint64_t>(cbrBytes) * 8 * cbrPps), cbrBytes);
         ApplicationContainer src = onoff.Install(g_nodes.Get(s));
-        // Bat dau sau khi OLSR co route (HELLO 2 s + TC ~5 s), truoc warmup 30 s.
-        src.Start(Seconds(15.0 + 0.5 * f));
+        src.Start(Seconds(0.0));
         src.Stop(Seconds(simTime));
         src.Get(0)->TraceConnectWithoutContext("Tx", MakeCallback(&OnCbrTx));
 
@@ -1139,9 +1296,21 @@ main(int argc, char* argv[])
     Simulator::Schedule(Seconds(5.0), &SampleDegree);
     Simulator::Schedule(Seconds(0.0), &SamplePositions, 5.0);
     Simulator::Schedule(Seconds(labelWin), &Rotate);
-    Simulator::Schedule(Seconds(15.0), &SampleCbrHops); // tu luc flow dau bat dau
+    Simulator::Schedule(Seconds(0.0), &SampleCbrHops);
+    const double heartbeatInterval = std::min(10.0, std::max(1.0, simTime / 30.0));
+    if (heartbeatInterval <= simTime)
+    {
+        Simulator::Schedule(Seconds(heartbeatInterval),
+                            &Heartbeat,
+                            scenarioId,
+                            seed,
+                            rngRun,
+                            simTime,
+                            heartbeatInterval);
+    }
 
     Simulator::Stop(Seconds(simTime) + Seconds(1.0));
+    g_wallStart = std::chrono::steady_clock::now();
     Simulator::Run();
     Simulator::Destroy();
 
@@ -1166,7 +1335,11 @@ main(int argc, char* argv[])
     meta << std::fixed << std::setprecision(6) << "{\n"
          << "  \"scenario\": \"link-dataset-fanet\",\n"
          << "  \"phase\": \"P2\",\n"
+         << "  \"scenario_id\": " << scenarioId << ",\n"
          << "  \"seed\": " << seed << ",\n"
+         << "  \"rng_run\": " << rngRun << ",\n"
+         << "  \"random_setup\": " << (setupWasRandomized ? "true" : "false") << ",\n"
+         << "  \"setup_rng_stream\": " << SETUP_RNG_STREAM << ",\n"
          << "  \"config_files\": [";
     for (size_t i = 0; i < cfg.Files().size(); ++i)
     {
@@ -1174,8 +1347,14 @@ main(int argc, char* argv[])
     }
     meta << "],\n"
          << "  \"num_nodes\": " << numNodes << ",\n"
+         << "  \"area_x_m\": " << areaX << ",\n"
+         << "  \"area_y_m\": " << areaY << ",\n"
+         << "  \"alt_min_m\": " << altMin << ",\n"
+         << "  \"alt_max_m\": " << altMax << ",\n"
+         << "  \"gm_alpha\": " << gmAlpha << ",\n"
+         << "  \"gm_velocity_min_mps\": " << gmVelMin << ",\n"
+         << "  \"gm_velocity_max_mps\": " << gmVelMax << ",\n"
          << "  \"sim_time_s\": " << simTime << ",\n"
-         << "  \"warmup_s\": " << warmupTime << ",\n"
          << "  \"tx_power_dbm\": " << txPowerDbm << ",\n"
          << "  \"min_rssi_dbm\": " << minRssiDbm << ",\n"
          << "  \"freq_mhz\": " << freqMhz << ",\n"
@@ -1261,7 +1440,8 @@ main(int argc, char* argv[])
     std::cout << "--- link-dataset-fanet P2, seed " << seed << " ---\n"
               << "  rows             : " << g_count.rows << "  (bo " << g_count.rowsDropLowRssi
               << " thieu RSSI, " << g_count.rowsDropLowTrials << " thieu trial)\n"
-              << "  degree (P1 def)  : " << degreeMean << "  (P1 do 6.14; co lap "
+              << "  degree (P1 def)  : " << degreeMean
+              << (setupWasRandomized ? "  (setup random; co lap " : "  (P1 do 6.14; co lap ")
               << 100.0 * isolatedFrac << "% node-thoi-gian)\n"
               << "  beacon           : " << g_count.beaconsSent << " phat / " << g_count.beaconsRecv
               << " nhan\n"

@@ -204,6 +204,9 @@ def main(argv=None) -> int:
             return 2
 
     summary = json.loads(summary_path.read_text())
+    meta_path = run_dir / "meta.json"
+    meta = json.loads(meta_path.read_text()) if meta_path.is_file() else {}
+    random_setup = bool(meta.get("random_setup", False))
 
     # ---------------- đọc rows.csv ----------------
     n_rows = 0
@@ -291,9 +294,6 @@ def main(argv=None) -> int:
          pct(n_retry_pos) >= gate_retry_min),
         ("% dòng 0 < pdr < 1", f">= {gate_mid_min}%", f"{pct(n_mid):.1f}%",
          pct(n_mid) >= gate_mid_min),
-        # Cổng bão hoà chính: sập nâng q vùng gần, đuôi cố ý đo không đụng nó.
-        (f"q vùng gần (< {near_max_m:.0f} m)", f"<= {gate_near_q_max}", f"{near_q:.3f}",
-         near_q <= gate_near_q_max),
         # Lưới sau — chỉ báo SẬP KÊNH, không phải chất lượng dữ liệu: harness
         # không-kiểm-duyệt phải có loss tổng cao (78.3% ở kênh khoẻ).
         ("MAC loss tổng (lưới sập)", f"<= {gate_loss_max}%", f"{mac_loss:.1f}%",
@@ -302,6 +302,13 @@ def main(argv=None) -> int:
          pinned <= gate_pinned_max),
         ("dòng có fails > 0", "> 0", str(n_fails_pos), n_fails_pos > 0),
     ]
+    if not random_setup:
+        # Chỉ hợp lệ cho nominal 19 dBm: rHalfM=625 m được đo ở P1.
+        gates.insert(
+            3,
+            (f"q vùng gần (< {near_max_m:.0f} m)", f"<= {gate_near_q_max}",
+             f"{near_q:.3f}", near_q <= gate_near_q_max),
+        )
 
     print(f"=== check_gates: {run_dir.relative_to(REPO_ROOT)} ===")
     print(f"{'Chỉ số':<28}{'Ngưỡng':<14}{'Đo được':<12}Đạt")
@@ -313,9 +320,15 @@ def main(argv=None) -> int:
     # ---------------- số phải nhìn, không phải cổng ----------------
     print("\n--- số phải nhìn trước khi duyệt batch ---")
     print(f"rows                      : {n_rows}  (probe-only {pct(n_probe_only):.1f}%)")
-    print(f"degree so với P1          : {degree:.2f} / {P1_DEGREE_REF}  "
-          f"(lệch {100.0 * (degree - P1_DEGREE_REF) / P1_DEGREE_REF:+.1f}%), "
-          f"cô lập {100.0 * float(summary['isolated_frac']):.1f}% node-thời-gian")
+    if random_setup:
+        print(f"degree của setup random   : {degree:.2f}, "
+              f"cô lập {100.0 * float(summary['isolated_frac']):.1f}% node-thời-gian")
+        print("near-q nominal            : chỉ chẩn đoán, không gate "
+              f"(R½=625 m không áp cho TxPower random)")
+    else:
+        print(f"degree so với P1          : {degree:.2f} / {P1_DEGREE_REF}  "
+              f"(lệch {100.0 * (degree - P1_DEGREE_REF) / P1_DEGREE_REF:+.1f}%), "
+              f"cô lập {100.0 * float(summary['isolated_frac']):.1f}% node-thời-gian")
     print(f"dòng thiếu retry feature  : {n_retry_empty}  ({pct(n_retry_empty):.1f}% — GLM sẽ bỏ âm thầm)")
     n_low_trials = sum(1 for t in trials_all if t < 5)
     print(f"trials_future p10/p25/p50/p90: {percentile(trials_all, 0.10):.0f} / "
@@ -341,10 +354,7 @@ def main(argv=None) -> int:
           f"max {summary['queue_delay_ms_max']:.1f}  "
           f"(MaxDelay đang nắn traffic nếu p99 gần cap)")
 
-    sim_time = None
-    meta_path = run_dir / "meta.json"
-    if meta_path.is_file():
-        sim_time = float(json.loads(meta_path.read_text()).get("sim_time_s", 0)) or None
+    sim_time = float(meta.get("sim_time_s", 0)) or None
     print("\nairtime theo nguồn (toàn mạng, chưa chia miền tranh chấp):")
     airtime = summary["airtime_s"]
     frames = summary["airtime_frames"]

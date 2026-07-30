@@ -59,8 +59,15 @@ KnownKeys()
         "areaY",
         "altMin",
         "altMax",
+        "randomSetup",
+        "numNodesMin",
+        "numNodesMax",
+        "areaMin",
+        "areaMax",
         // --- Gauss-Markov
         "gmAlpha",
+        "gmAlphaMin",
+        "gmAlphaMax",
         "gmTimeStep",
         "gmVelMin",
         "gmVelMax",
@@ -76,6 +83,8 @@ KnownKeys()
         "gmNormPitchBound",
         // --- PHY / propagation
         "txPowerDbm",
+        "txPowerMin",
+        "txPowerMax",
         "exponent",
         "minRssiDbm",
         "channelNumber",
@@ -96,11 +105,12 @@ KnownKeys()
         "cbrFlows",
         "cbrBytes",
         "cbrPps",
+        "cbrPpsMin",
+        "cbrPpsMax",
         "maxQueueDelayMs",
         // --- Cua so feature / nhan (P2)
         "featureWin",
         "labelWin",
-        "warmupTime",
         "minRssiSamples",
         "minTrials",
         // --- Cong nghiem thu (Python doc)
@@ -275,17 +285,20 @@ class SimConfig
         });
     }
 
-    /// Goi SAU cmd.Parse(). In gia tri hieu dung + provenance, canh bao key khong dung.
-    void Finish() const
+    /// Goi SAU cmd.Parse(). Tuy chon in provenance va canh bao key khong dung.
+    void Finish(bool printValues = true, bool warnUnused = true) const
     {
-        std::cout << "--- cau hinh hieu dung (" << m_files.size() << " file config) ---\n";
-        for (const auto& path : m_files)
+        if (printValues)
         {
-            std::cout << "  # " << path << '\n';
-        }
-        for (const auto& printer : m_printers)
-        {
-            printer();
+            std::cout << "--- cau hinh hieu dung (" << m_files.size() << " file config) ---\n";
+            for (const auto& path : m_files)
+            {
+                std::cout << "  # " << path << '\n';
+            }
+            for (const auto& printer : m_printers)
+            {
+                printer();
+            }
         }
 
         std::vector<std::string> unused;
@@ -296,7 +309,7 @@ class SimConfig
                 unused.push_back(key);
             }
         }
-        if (!unused.empty())
+        if (warnUnused && !unused.empty())
         {
             std::cerr << "sim-config: CANH BAO " << unused.size()
                       << " key co trong registry nhung scenario nay KHONG doc:\n   ";

@@ -38,7 +38,7 @@ Three kinds of ns-3 run, and results never cross tiers:
 | Tier | Phases | What runs | Purpose |
 |---|---|---|---|
 | **1 — verification** | P0 | 2 nodes, one flying away, L2 probe only | Prove the instruments against hand-computed theory |
-| **2 — data collection** | P2–P4 | 30 nodes; stock OLSR (HELLO 2 s) as **load generator only** + multi-hop CBR + L2 beacon + L2 probe | Produce the per-link dataset the weights are fitted on |
+| **2 — data collection** | P2–P4 | Randomized setup (15–90 nodes and the ranges in the Simulation Setup table); stock OLSR (HELLO 2 s) as **load generator only** + multi-hop CBR + L2 beacon + L2 probe | Produce the per-link dataset the weights are fitted on |
 | **3 — evaluation** | P8–P10 | 30 nodes; OLSR + MPC HELLO controller + application traffic. **No beacon, no probe** | The numbers that go in the paper |
 
 Tier 2 design, and why each piece is there:
@@ -329,15 +329,26 @@ where `corr(retry_rate, rssi_mean)` is most strongly negative. It is near zero
 both when under-loaded (no retries anywhere) and when saturated (retries
 everywhere regardless of RSSI).
 
-### 14. Fit on one scenario; test generalisation on others
-Pooling scenarios yields compromise weights optimal for none, and hides
-whether weights depend on conditions. Fit on the nominal scenario only. Then
-(a) apply the frozen weights to other scenarios and measure the drop, and
-(b) **refit separately per scenario and report weight drift**. Stable weights
-across speeds are evidence the formula captures physics. Expect `c` to drift
-with offered load — that is a Discussion point if anticipated, a hole if not.
+### 14. Fit on the randomized design; test on unseen runs
+Each scenario samples one setup vector (node count, X/Y size, alpha, TxPower
+and packet rate) with a dedicated ns-3 `UniformRandomVariable` stream. All
+seeds inside that scenario share the setup but use independent `RngRun`
+values. Split by scenario before normalization or fitting, and record every
+realized setup in `scenario.json`/`meta.json`; never split seeds from one
+scenario across fit and holdout.
 
-### 15. Separate seed batches, disjoint, split by seed
+The campaign parent asks ns-3 to generate each `scenario.json` exactly once,
+then passes those realized values to every seed worker. Workers never sample
+or write scenario-level state. The global `RngRun` mapping is
+`(scenario-1)*seedsPerScenario+seed`, independent of worker assignment.
+
+The pooled coefficient is a scenario-marginal weight, so **also refit by
+density/speed/load strata and report weight drift**. Stable weights are
+evidence the formula captures physics. Expect `c` to drift with offered load;
+if drift is material, report that limitation rather than hiding it in one
+pooled number.
+
+### 15. Keep legacy fixed-design and randomized splits distinct
 
 | Artifact | From batch |
 |---|---|
@@ -345,8 +356,10 @@ with offered load — that is a Discussion point if anticipated, a hole if not.
 | `frozen/weights.json` (a,b,c) | training, 30–40 seeds |
 | All reported numbers | evaluation, 5 seeds |
 
-Split train/test **by seed**, never by row. Never compute percentiles on
-pooled data before splitting — that is silent leakage.
+The table above documents the legacy fixed-design P2–P5 dataset. For the new
+randomized campaign, split train/test **by scenario**, never by seed or row.
+Never compute percentiles on pooled data before splitting — that is silent
+leakage.
 
 **`data/eval/` is off-limits until P10.** Touching it earlier invalidates
 every reported number. **`frozen/` is immutable once written** — if it must
@@ -458,24 +471,25 @@ bite you** (see the Nakagami note below).
 
 | Parameter | Value | Why |
 |---|---|---|
-| Area | 2000×2000×500 m (alt 100–600) | ~6 neighbours at 30 nodes |
-| Nodes | 30 | |
-| Mobility | `GaussMarkovMobilityModel`, Alpha 0.85 | FANET de-facto standard |
+| Area | X,Y sampled independently Uniform[1000, 3000) m per scenario; altitude Uniform[100, 600) m per node | Diversifies density and geometry across scenarios |
+| Nodes | Discrete Uniform[15, 90] per scenario | |
+| Mobility | `GaussMarkovMobilityModel`, Alpha Uniform[0.4, 0.95) per scenario | FANET de-facto standard |
 | MeanVelocity | Uniform[15, 30] m/s | Mid-range of published FANET work |
 | **MeanPitch** | **Uniform[−0.05, +0.05]** | The widely copied ns-3 template sets `Min=Max=0.05`, so every UAV climbs forever and pins to the ceiling. Bug. |
 | NormalVelocity | Normal[0, var 2.0, bound 4.0] | Template sets var=0, i.e. no speed variation |
 | Standard | 802.11a, 5.18 GHz, `ConstantRateWifiManager` 6 Mbps | |
 | **`FrameRetryLimit`** | **2** (= dot11ShortRetryLimit; the pre-3.44 ns-3 knobs `MaxSsrc`/`MaxSlrc` are OBSOLETE in 3.45 and replaced by this single attribute) | **System-wide decision — applies to Tier 2 AND Tier 3, declared in Simulation Setup.** Two reasons: (i) retries of one frame happen within ms under a near-identical channel, so L = 7 counts a burst of 7 *correlated* failures as 7 iid Bernoulli trials and the binomial GLM overstates its information by ~√5; L = 2 bounds the overstatement at ~√2. (ii) At FANET speeds persistent retry is counterproductive — the topology changes before the burst ends, so the airtime is spent on links that are already gone. Measured consequence at L = 7: ARQ amplification ×5.37 saturated the channel (P2 smoke run 1). |
-| **TxPower** | **19 dBm** | Chosen to hit a **measured** degree, not from a link-budget formula. Gives d(PDR 0.5) = **625 m** and degree **6.14**, both measured in P1. |
+| **TxPower** | **Uniform[15, 23) dBm per scenario** | Diversifies the link waterfall; 19 dBm remains the historical nominal reference measured in P1. |
+| CBR packet rate | Discrete Uniform[4, 20] pkt/s per flow, per scenario | Diversifies offered load |
 | **`MinimumRssi`** | **−101 dBm** | `ThresholdPreambleDetectionModel` defaults to **−82 dBm**, a hard RSSI floor: a frame below it is never detected whatever its SNR, and it sits 7 dB above the noise-limited sensitivity. At −101 the binding constraint becomes `Threshold` (4 dB SNR → effective floor −90 dBm). **Declare in the paper.** It buys no extra range at fixed degree — see below. |
-| **Mean degree** | **6.14** | **Measured** (P1, beacon ratio ≥ 0.5 over 5 s), isolated 0.6% of node-time. Cross-checked by a geometric count from recorded positions with no beacon involved: ~6.0. Do not compute this from a density formula — the box is 500 m tall against a 625 m range, so the 2D and 3D formulas differ by nearly 2× and the coverage sphere is clipped by the boundary. |
+| **Mean degree** | Scenario-dependent; **6.14 is the 30-node/2000 m/19 dBm nominal reference only** | Record the realised value for every run; do not compare random scenarios to one fixed expected degree. |
 | **Altitude dynamics** | quasi-2D | Each node stays in a ~107 m altitude slice over a 300 s run (median z-span; **100%** of nodes cover under half the 500 m band). Vertical motion contributes a median of **0.7%** of the distance change that flips a link's state (3.2% before projecting onto the 3D separation). So: 3D **positions**, stratified between nodes, with dynamics driven by horizontal motion. Say it that way in the paper; do not write "3D mobility" and imply altitude varies. |
 | Path loss exponent | 2.2 | Measurements put A2A near free-space |
 | **Nakagami m₀/m₁/m₂** | **8 / 5 / 3** | LoS-dominated aloft. The ns-3 default of 1.5/0.75/0.75 is an urban ground channel — m<1 is *worse than Rayleigh*. |
 | **Distance1 / Distance2** | **100 m / 300 m** | Defaults 80/200 m are a ground-scale threshold; with 500 m links every link falls in the far tier |
 | Feature window Δ | 4 s | At 2 s the slope SNR is ≈1 and β_slope is unidentifiable |
 | Label window τ | 4 s | |
-| Sim time | 300 s, discard first 30 s | Gauss-Markov and neighbour tables need warmup |
+| Sim time | 300 s, no manual startup discard | Boot transients are part of the observed network; a row still requires complete feature and future-label windows |
 | Seeds | **40** = 5 calibration / 30 training / 5 evaluation (settled P2; run 3 wall time ~3 min/seed) | Rule 6 wants 30–50 clusters; more seeds beat longer runs |
 
 ### Build and run

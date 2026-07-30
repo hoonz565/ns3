@@ -132,9 +132,10 @@ def main():
             manifest = json.load(fh)
         assert manifest["seed"] == seed, f"manifest seed-{seed} tự khai sai seed"
         manifests.append(manifest)
-    profile_keys = ("binary_sha256", "config_sim_sha256", "sim_params_sha256")
-    profiles = {tuple(m[k] for k in profile_keys) for m in manifests}
-    assert len(profiles) == 1, "24 seed fit không cùng bộ ba hồ sơ mô phỏng"
+    design_keys = ("binary_sha256", "config_sim_sha256")
+    designs = {tuple(m[k] for k in design_keys) for m in manifests}
+    assert len(designs) == 1, "24 seed fit không cùng binary/config random design"
+    realized_params = {str(m["seed"]): m["sim_params_sha256"] for m in manifests}
 
     d, n_total, n_missing = load_fit_set(args.root, fit_seeds)
     assert not (set(d["seed"].tolist()) & forbidden), "holdout lọt vào tập fit!"
@@ -146,7 +147,8 @@ def main():
            "n_rows_used": n_used, "n_rows_missing_retry": n_missing,
            "provenance": {
                "data_git_sha": manifests[0]["git_sha"],
-               **dict(zip(profile_keys, next(iter(profiles)))),
+               **dict(zip(design_keys, next(iter(designs)))),
+               "sim_params_sha256_by_seed": realized_params,
                "split": f"{args.split}@sha256:{sha256_file(args.split)}",
                "analysis_script": f"{__file__}@sha256:{sha256_file(__file__)}",
            }}
@@ -311,7 +313,7 @@ def main():
             "data_git_sha": train_manifest["git_sha"],
             "binary_sha256": train_manifest["binary_sha256"],
             "config_sim_sha256": train_manifest["config_sim_sha256"],
-            "sim_params_sha256": train_manifest["sim_params_sha256"],
+            "sim_params_sha256_by_seed": realized_params,
             "split": f"frozen/split.json@sha256:{sha256_file('frozen/split.json')}",
             "analysis_script": f"{__file__}@sha256:{sha256_file(__file__)}",
         },

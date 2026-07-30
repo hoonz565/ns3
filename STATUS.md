@@ -3,7 +3,7 @@
 > File này là nguồn chân lý về **đang ở đâu**. Đọc đầu tiên mỗi session,
 > cập nhật cuối mỗi phase (WORKFLOW.md mục 1).
 
-Cập nhật lần cuối: 2026-07-27
+Cập nhật lần cuối: 2026-07-29
 
 ## Phase hiện tại
 
@@ -17,6 +17,24 @@ AR persistence ở mọi point metric. Clipped Full xấu hơn tổng thể và 
 `s_RSSI=1` ở 100% dòng 0–200 m, làm đạo hàm RSSI-level bằng 0; vùng này
 mean |p_raw−p_clip| = 30,395 điểm %. Báo cáo:
 `reports/P5b-eval.md`. `data/eval/` vẫn cấm tới P10.**
+
+**THAY ĐỔI THIẾT KẾ TIER 2 (2026-07-29) ĐÃ IMPLEMENT, CHƯA CHẠY BATCH:**
+`link-dataset-fanet` lấy mẫu setup mỗi scenario id bằng
+`ns3::UniformRandomVariable`: node 15–90, X/Y 1000–3000 m, altitude
+100–600 m mỗi node, speed 15–30 m/s mỗi node, alpha 0.4–0.95, TxPower
+15–23 dBm và CBR 4–20 pkt/s. Mọi seed trong scenario dùng chung setup và
+có `RngRun` độc lập. Đã bỏ warmup/start delay thủ công; metadata ghi setup
+thực tế và RNG stream. Target mới là **1.000 scenario × 10 seed**.
+`scripts/run_campaign.sh` dùng global dynamic queue + `ThreadPoolExecutor`;
+parent gọi ns-3 generate mỗi `scenario.json` đúng một lần và là single writer
+cho summary/progress, worker chỉ ghi thư mục seed. Có `--workers auto|N`,
+dashboard sạch, resume tự retry run chưa PASS và Ctrl+C terminate process
+con. Log seed đã bỏ dump nominal, flush setup thực tế và giữ heartbeat thô.
+Build + parallel/resume/interrupt smoke ngắn đạt.
+**Chưa duyệt batch lớn:**
+smoke scenario 1 lấy 87 node và đo probe
+airtime 253% simTime ở giây đầu, cho thấy các setup dày có thể bão hoà.
+Dataset/frozen P2–P5 cũ giữ nguyên, không ghi đè.
 
 Giới hạn đã ghi rõ: repo không có frozen inference implementation cho
 RSSI-only, RSSI+slope hoặc LET; dưới lệnh cấm refit/tạo baseline mới, ba

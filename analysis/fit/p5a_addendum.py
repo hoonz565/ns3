@@ -64,14 +64,15 @@ def main():
     row_midpoints = []
     rows_probe_only = rows_cbr_only = 0
     rows_used = rows_distance = 0
-    profiles = set()
+    designs = set()
+    realized_params = {}
     queue_p99_ms = []
     queue_max_ms = []
     for seed in FIT_SEEDS:
         manifest = json.load(open(os.path.join(args.root, f"seed-{seed}", "run_manifest.json")))
         assert manifest["seed"] == seed
-        profiles.add(tuple(manifest[k] for k in
-                           ("binary_sha256", "config_sim_sha256", "sim_params_sha256")))
+        designs.add(tuple(manifest[k] for k in ("binary_sha256", "config_sim_sha256")))
+        realized_params[str(seed)] = manifest["sim_params_sha256"]
         summary = json.load(open(os.path.join(args.root, f"seed-{seed}", "summary.json")))
         queue_p99_ms.append(summary["queue_delay_ms_p99"])
         queue_max_ms.append(summary["queue_delay_ms_max"])
@@ -102,7 +103,7 @@ def main():
                     ("fail", fails),
                 ):
                     d[key].append(value)
-    assert len(profiles) == 1
+    assert len(designs) == 1
     d = {k: np.asarray(v) for k, v in d.items()}
 
     total_attempts = attempts["probe"] + attempts["cbr"]
@@ -129,13 +130,13 @@ def main():
     quartile = fit_bands(d, quartile_bands)
     original = fit_bands(d, [(3, 9), (10, 19), (20, 29), (30, 10**9)])
 
-    profile = next(iter(profiles))
+    design = next(iter(designs))
     out = {
         "scope": {"fit_seeds": FIT_SEEDS, "holdout_read": False},
         "provenance": {
-            "binary_sha256": profile[0],
-            "config_sim_sha256": profile[1],
-            "sim_params_sha256": profile[2],
+            "binary_sha256": design[0],
+            "config_sim_sha256": design[1],
+            "sim_params_sha256_by_seed": realized_params,
             "split": f"{args.split}@sha256:{sha256_file(args.split)}",
             "analysis_script": f"{__file__}@sha256:{sha256_file(__file__)}",
         },
