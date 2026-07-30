@@ -197,7 +197,7 @@ jobs:
         if: env.cache_misses != '0'
         run: ./test.py --no-build --verbose-failed
   Windows_Visual_Studio:
-    runs-on: windows-latest
+    runs-on: windows-2022
     defaults:
       run:
         shell: cmd
