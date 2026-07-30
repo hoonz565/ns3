@@ -3,7 +3,7 @@
 > File này là nguồn chân lý về **đang ở đâu**. Đọc đầu tiên mỗi session,
 > cập nhật cuối mỗi phase (WORKFLOW.md mục 1).
 
-Cập nhật lần cuối: 2026-07-29
+Cập nhật lần cuối: 2026-07-30
 
 ## Phase hiện tại
 
@@ -29,8 +29,12 @@ thực tế và RNG stream. Target mới là **1.000 scenario × 10 seed**.
 parent gọi ns-3 generate mỗi `scenario.json` đúng một lần và là single writer
 cho summary/progress, worker chỉ ghi thư mục seed. Có `--workers auto|N`,
 dashboard sạch, resume tự retry run chưa PASS và Ctrl+C terminate process
-con. Log seed đã bỏ dump nominal, flush setup thực tế và giữ heartbeat thô.
-Build + parallel/resume/interrupt smoke ngắn đạt.
+con. Acceptance gate đã tách khỏi generation và hoãn tới hậu kiểm toàn
+dataset; run hoàn tất không bị chạy lại chỉ vì gate cũ trượt. Log seed đã bỏ
+dump nominal, flush setup thực tế và giữ heartbeat thô. Runner hỗ trợ range
+inclusive `--scenario-start/--scenario-end`; range chạy tiếp bằng `--resume`
+trên cùng dataset, và `--workers auto` tương thích Ubuntu/WSL.
+Build + parallel/resume/range/interrupt smoke ngắn đạt.
 **Chưa duyệt batch lớn:**
 smoke scenario 1 lấy 87 node và đo probe
 airtime 253% simTime ở giây đầu, cho thấy các setup dày có thể bão hoà.

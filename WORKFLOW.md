@@ -297,11 +297,44 @@ Resume sau khi dừng/mất điện:
 ./scripts/run_campaign.sh --out dataset_1000x10 --resume --workers auto
 ```
 
+Có thể chạy tuần tự theo từng khoảng scenario; `--scenario-start` và
+`--scenario-end` đều tính cả hai đầu. Lần đầu vẫn khai báo quy mô toàn
+campaign:
+
+```bash
+./scripts/run_campaign.sh \
+  --scenarios 1000 \
+  --seeds 10 \
+  --scenario-start 1 \
+  --scenario-end 100 \
+  --workers auto \
+  --out dataset_1000x10 \
+  --yes
+```
+
+Các khoảng tiếp theo resume trực tiếp vào cùng dataset:
+
+```bash
+./scripts/run_campaign.sh \
+  --out dataset_1000x10 \
+  --resume \
+  --scenario-start 101 \
+  --scenario-end 200 \
+  --workers auto
+```
+
+Nếu bỏ hai option range, runner chọn toàn bộ `1..num_scenarios` như trước.
+Không chạy đồng thời hai runner vào cùng `--out`, vì parent của mỗi process
+đều có thể ghi `summary.csv`, manifest và progress chung.
+
 Resume bỏ qua seed `PASS` còn đủ output và tự đưa seed `FAILED`,
 `INTERRUPTED` hoặc thiếu output trở lại global queue.
 
-Acceptance gates được bật mặc định cho campaign thật. Chỉ khi smoke/debug
-ngắn mới dùng `--skip-gates`; kết quả đó không được coi là dataset đã duyệt.
+Campaign generation không chạy acceptance gate theo từng seed. Seed được xem
+là hoàn tất khi process thoát thành công và đủ output; `check_gates.py` được
+giữ nguyên để hậu kiểm sau khi dataset đã sinh xong. Các kết quả cũ chỉ
+`FAILED` vì acceptance gate được chuyển thành `PASS` với
+`gate_validation=DEFERRED_POST_CAMPAIGN`, không mô phỏng lại.
 
 Parent gọi ns-3 sinh mỗi `scenario_xxxx/scenario.json` đúng một lần, rồi đưa
 toàn bộ cặp `(scenario, seed)` vào một dynamic queue. Worker chỉ ghi
@@ -310,4 +343,7 @@ toàn bộ cặp `(scenario, seed)` vào một dynamic queue. Worker chỉ ghi
 Heartbeat thô nằm trong `seed/log.txt`; terminal chỉ hiện dashboard worker,
 overall progress và ETA. `--workers auto` lấy min giữa `CPU-1` và RAM khả
 dụng/1 GiB; có thể ép bằng `--workers 8`. Ctrl+C terminate toàn bộ process
-con trước khi thoát.
+con trước khi thoát. Runner dùng Bash, Python standard library và process
+Linux nên chạy giống nhau trên Ubuntu và Ubuntu trong WSL. Trên WSL nên đặt
+repo lẫn dataset trong filesystem Linux như `~/workspace/ns3`, tránh
+`/mnt/c` hoặc `/mnt/d` vì I/O và symlink chậm hơn.

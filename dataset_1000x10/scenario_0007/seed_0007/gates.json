@@ -1,0 +1,86 @@
+{
+  "rows": 29894,
+  "gates": {
+    "degree trung bình": {
+      "threshold": ">= 4.0",
+      "value": "3.35",
+      "pass": false
+    },
+    "% dòng retry_rate > 0": {
+      "threshold": ">= 10.0%",
+      "value": "88.0%",
+      "pass": true
+    },
+    "% dòng 0 < pdr < 1": {
+      "threshold": ">= 10.0%",
+      "value": "48.6%",
+      "pass": true
+    },
+    "MAC loss tổng (lưới sập)": {
+      "threshold": "<= 85.0%",
+      "value": "81.3%",
+      "pass": true
+    },
+    "% dòng pdr ghim 0/1": {
+      "threshold": "<= 90.0%",
+      "value": "51.4%",
+      "pass": true
+    },
+    "dòng có fails > 0": {
+      "threshold": "> 0",
+      "value": "26592",
+      "pass": true
+    }
+  },
+  "retry_empty_pct": 0.9165718873352512,
+  "probe_only_pct": 97.82565063223389,
+  "median_trials": 7.0,
+  "trials_p10_p25_p50_p90": [
+    4.0,
+    5.0,
+    7.0,
+    8.0
+  ],
+  "trials_below_5_pct": 17.960125777748043,
+  "fails_slipped_windows": 16,
+  "q_by_bin_probe_cbr": {
+    "0-200 m": {
+      "q_probe": 0.10493692909960853,
+      "q_cbr": 0.22330654420206658,
+      "trials_probe": 9196.0,
+      "trials_cbr": 1742.0
+    },
+    "200-400 m": {
+      "q_probe": 0.5718141618331132,
+      "q_cbr": 0.7389083945100543,
+      "trials_probe": 69652.0,
+      "trials_cbr": 12532.0
+    },
+    "400-600 m": {
+      "q_probe": 0.9339613919603565,
+      "q_cbr": 0.9647910496873972,
+      "trials_probe": 108164.0,
+      "trials_cbr": 9117.0
+    },
+    "600-800 m": {
+      "q_probe": 0.9968011811023622,
+      "q_cbr": 1.0,
+      "trials_probe": 4064.0,
+      "trials_cbr": 186.0
+    }
+  },
+  "pinned_hi_pct": 11.045694788251824,
+  "pinned_lo_pct": 40.342543654245,
+  "degree_vs_p1": {
+    "measured": 3.349153,
+    "p1": 6.14
+  },
+  "near_q": {
+    "value": 0.5416765103842272,
+    "max_dist_m": 400.0,
+    "trials": 93122.0
+  },
+  "corr_retry_rssi_pearson": -0.7966567496654,
+  "corr_retry_rssi_spearman": -0.8267977131861324,
+  "all_pass": false
+}

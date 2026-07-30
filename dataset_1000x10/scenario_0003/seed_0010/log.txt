@@ -50,3 +50,28 @@ sim-config: CANH BAO 10 key co trong registry nhung scenario nay KHONG doc:
 [heartbeat] scenario=3 seed=10 rngRun=30 sim=260.0/300.0s (86.7%) wall=3044.0s rows=96277 probe_attempts=1129891 cbr_attempts=10964
 [heartbeat] scenario=3 seed=10 rngRun=30 sim=270.0/300.0s (90.0%) wall=3175.9s rows=100729 probe_attempts=1172985 cbr_attempts=11227
 [heartbeat] scenario=3 seed=10 rngRun=30 sim=280.0/300.0s (93.3%) wall=3316.8s rows=103863 probe_attempts=1216259 cbr_attempts=11475
+[heartbeat] scenario=3 seed=10 rngRun=30 sim=290.0/300.0s (96.7%) wall=3479.1s rows=108529 probe_attempts=1259621 cbr_attempts=11783
+[heartbeat] scenario=3 seed=10 rngRun=30 sim=300.0/300.0s (100.0%) wall=3631.9s rows=111692 probe_attempts=1303527 cbr_attempts=11907
+--- link-dataset-fanet P2, seed 10 ---
+  rows             : 113282  (bo 114742 thieu RSSI, 176 thieu trial)
+  degree (P1 def)  : 3.83358  (setup random; co lap 2.01813% node-thoi-gian)
+  beacon           : 257999 phat / 1576086 nhan
+  probe attempts   : 1303535  fails 1185285
+  cbr attempts     : 11907  fails 8618
+  mac_loss (attempt): 0.907606
+  fails unattributed: 0  slipped windows: 79
+  PSDU probe/cbr   : 576 / 576 B
+  queue            : dequeued 977968, expired 0, tran 0
+  queue delay ms   : p50 2.11217  p90 5.39263  p99 11.4078  max 55.383
+  cbr app          : tx 4994  rx 1661
+  cbr hop (flow-giay): no_route=1177  1 hop=225  2 hop=264  3 hop=108  4 hop=21  5 hop=4  6 hop=1  
+  --- airtime theo nguon (% cua 300 s, toan mang, chua chia mien tranh chap) ---
+    beacon       29.93 s     9.98 %   (257999 frame)
+    probe      1032.40 s   344.13 %   (1303535 frame)
+    cbr           9.43 s     3.14 %   (11907 frame)
+    olsr          5.38 s     1.79 %   (20049 frame)
+    arp           0.00 s     0.00 %   (0 frame)
+    ctrl          8.91 s     2.97 %   (202450 frame)
+    mgmt          0.00 s     0.00 %   (0 frame)
+    other         0.00 s     0.00 %   (0 frame)
+  ghi vao          : /home/hung/workspace/ns3/dataset_1000x10/scenario_0003/seed_0010/{rows.csv,positions.csv,meta.json,summary.json}

@@ -1,0 +1,24 @@
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[run_manifest] CẢNH BÁO: GIT DIRTY — 233 file thay đổi/untracked (STATUS.md, WORKFLOW.md, dataset_1000x10/campaign.json, dataset_1000x10/progress.json, dataset_1000x10/scenario_0001/seed_0001/stats.json...). Kết quả KHÔNG tái lập được từ SHA 47362bb3d. Commit trước khi chạy batch thật.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+[run_manifest] dataset_1000x10/scenario_0010/seed_0008/run_manifest.json
+[run_manifest] phase=P2-random-campaign seed=8 sha=47362bb3d dirty=True
+sim-config: CANH BAO 10 key co trong registry nhung scenario nay KHONG doc:
+   gateDegreeMin, gateLossMax, gateMidMin, gateNearQMax, gatePinnedMax, gateRetryMin, rHalfM, seedsCalibration, seedsTest, seedsTrain
+   Binh thuong khi mot scenario nap ca file nominal (vi du seedsTrain, gate* la cua Python).
+   NHUNG neu mot tham so vat ly nam trong danh sach nay thi scenario dang chay bang default, khong bang config.
+--- setup thuc te cua seed ---
+  scenario         : 10
+  nodes            : 48
+  area             : 1457.4 x 2608.44 m
+  altitude         : Uniform[100, 600) m
+  speed            : Uniform[15, 30) m/s
+  gm alpha         : 0.723722
+  tx power         : 22.0927 dBm
+  CBR rate         : 12 pkt/s
+  seed             : 8
+  rng run          : 98
+  simulation time  : 300 s
+  output           : /home/hung/workspace/ns3/dataset_1000x10/scenario_0010/seed_0008

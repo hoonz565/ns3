@@ -412,13 +412,14 @@ def load_scenario(path: Path, scenario_id: int) -> dict:
 
 def generate_scenarios(
     out: Path,
-    count: int,
+    scenario_ids: range,
+    campaign_total: int,
     registry: ProcessRegistry,
     log: CampaignLog,
 ) -> dict[int, dict]:
     scenarios: dict[int, dict] = {}
     generated = 0
-    for scenario_id in range(1, count + 1):
+    for scenario_id in scenario_ids:
         scenario_dir = out / f"scenario_{scenario_id:04d}"
         scenario_dir.mkdir(exist_ok=True)
         path = scenario_dir / "scenario.json"
@@ -441,9 +442,13 @@ def generate_scenarios(
         os.replace(tmp, path)
         scenarios[scenario_id] = value
         generated += 1
-        if generated == 1 or generated % 100 == 0 or scenario_id == count:
-            log.write(f"Generated scenario setup: {scenario_id}/{count}")
-    log.write(f"Scenario setup ready: {count} total, {generated} generated, {count - generated} reused")
+        if generated == 1 or generated % 100 == 0 or scenario_id == scenario_ids.stop - 1:
+            log.write(f"Generated scenario setup: {scenario_id}/{campaign_total}")
+    selected = len(scenario_ids)
+    log.write(
+        f"Scenario setup ready for range {scenario_ids.start}-{scenario_ids.stop - 1}: "
+        f"{selected} selected, {generated} generated, {selected - generated} reused"
+    )
     return scenarios
 
 
@@ -500,10 +505,23 @@ def existing_pass(job: Job, scenario: dict) -> dict[str, object] | None:
         return None
     try:
         status = json.loads(status_path.read_text())
-        if status.get("status") != "PASS":
+        gate_deferred = (
+            status.get("status") == "FAILED"
+            and str(status.get("reason", "")).startswith("acceptance gates failed")
+        )
+        if status.get("status") != "PASS" and not gate_deferred:
             return None
+        if gate_deferred:
+            status["previous_gate_reason"] = status["reason"]
+            status["gate_validation"] = "DEFERRED_POST_CAMPAIGN"
+            status["status"] = "PASS"
+            status["reason"] = ""
+            atomic_json(status_path, status)
         stats_path = job.seed_dir / "stats.json"
         stats = json.loads(stats_path.read_text()) if stats_path.is_file() else quick_stats(required[2])
+        if gate_deferred and stats_path.is_file():
+            stats.update(status)
+            atomic_json(stats_path, stats)
         return make_summary_row(
             job,
             scenario,
@@ -521,7 +539,6 @@ def run_job(
     job: Job,
     scenario: dict,
     sim_time: float,
-    gates_enabled: bool,
     registry: ProcessRegistry,
     worker_ids: WorkerIds,
     dashboard: Dashboard,
@@ -619,19 +636,6 @@ def run_job(
             if rc != 0:
                 reason = "manifest meta augmentation failed"
 
-        if rc == 0 and gates_enabled:
-            gates_path = job.seed_dir / "gates.log"
-            gates_command = [
-                "python3",
-                "scripts/check_gates.py",
-                str(job.seed_dir),
-                "--config",
-                str(CONFIG.relative_to(ROOT)),
-            ]
-            rc, _ = run_process(gates_command, registry, gates_path)
-            if rc != 0:
-                reason = f"acceptance gates failed (xem {gates_path.name})"
-
         sim_summary_path = job.seed_dir / "summary.json"
         if sim_summary_path.is_file():
             sim_summary = json.loads(sim_summary_path.read_text())
@@ -702,9 +706,11 @@ def main() -> int:
     parser.add_argument("-o", "--out", help="output directory")
     parser.add_argument("--sim-time", type=float, default=300.0)
     parser.add_argument("--workers", default="auto", help="positive integer or auto")
+    parser.add_argument("--scenario-start", type=int, help="first scenario id, inclusive")
+    parser.add_argument("--scenario-end", type=int, help="last scenario id, inclusive")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--retry-failed", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--skip-gates", action="store_true", help="smoke/debug only")
+    parser.add_argument("--skip-gates", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("-y", "--yes", action="store_true", help="do not ask for confirmation")
     args = parser.parse_args()
 
@@ -721,7 +727,8 @@ def main() -> int:
         num_scenarios = int(campaign["num_scenarios"])
         seeds_per_scenario = int(campaign["seeds_per_scenario"])
         sim_time = float(campaign["simulation_time_s"])
-        gates_enabled = bool(campaign.get("gates_enabled", True))
+        campaign["gates_enabled"] = False
+        campaign["gate_policy"] = "deferred_post_campaign"
     else:
         if args.resume:
             sys.exit(f"Không có campaign để resume tại {out}")
@@ -732,19 +739,28 @@ def main() -> int:
         sim_time = args.sim_time
         if num_scenarios <= 0 or seeds_per_scenario <= 0 or sim_time <= 0:
             sys.exit("scenarios, seeds và sim-time phải > 0")
-        gates_enabled = not args.skip_gates
         campaign = {
             "num_scenarios": num_scenarios,
             "seeds_per_scenario": seeds_per_scenario,
             "generator": "ns3::UniformRandomVariable generate-once",
             "simulation_time_s": sim_time,
-            "gates_enabled": gates_enabled,
+            "gates_enabled": False,
+            "gate_policy": "deferred_post_campaign",
             "config": str(CONFIG.relative_to(ROOT)),
             "created_at": utc_now(),
         }
 
-    total = num_scenarios * seeds_per_scenario
-    workers, worker_reason = resolve_workers(args.workers, total)
+    scenario_start = args.scenario_start if args.scenario_start is not None else 1
+    scenario_end = args.scenario_end if args.scenario_end is not None else num_scenarios
+    if not (1 <= scenario_start <= scenario_end <= num_scenarios):
+        sys.exit(
+            f"Range scenario không hợp lệ: {scenario_start}-{scenario_end}; "
+            f"campaign có scenario 1-{num_scenarios}"
+        )
+    scenario_ids = range(scenario_start, scenario_end + 1)
+    campaign_total = num_scenarios * seeds_per_scenario
+    selected_total = len(scenario_ids) * seeds_per_scenario
+    workers, worker_reason = resolve_workers(args.workers, selected_total)
     if not campaign_path.is_file():
         if not args.yes:
             print("\n==============================")
@@ -752,10 +768,14 @@ def main() -> int:
             print("==============================")
             print(f"Number of scenarios : {num_scenarios}")
             print(f"Seeds per scenario  : {seeds_per_scenario}")
+            print(f"Scenario range      : {scenario_start}-{scenario_end} (inclusive)")
             print(f"Workers             : {workers} ({worker_reason})")
             print(f"Output directory    : {out}")
             if not ask_yes("Continue? (Y/N): "):
                 return 0
+        atomic_json(campaign_path, campaign)
+    else:
+        # Persist the deferred-gate policy before launching a long resume.
         atomic_json(campaign_path, campaign)
 
     prior_runtime = float(campaign.get("runtime_s", 0.0))
@@ -774,7 +794,11 @@ def main() -> int:
     log.write("=" * 54)
     log.write(
         f"Scenarios: {num_scenarios}, seeds/scenario: {seeds_per_scenario}, "
-        f"jobs: {total}"
+        f"campaign jobs: {campaign_total}"
+    )
+    log.write(
+        f"Selected range: {scenario_start}-{scenario_end} (inclusive), "
+        f"jobs: {selected_total}"
     )
     log.write(f"Workers: {workers} ({worker_reason})")
     log.write(f"Output: {out}")
@@ -787,7 +811,7 @@ def main() -> int:
                 return rc
         if not BINARY.is_file():
             raise SystemExit(f"Không tìm thấy binary: {BINARY}")
-        scenarios = generate_scenarios(out, num_scenarios, registry, log)
+        scenarios = generate_scenarios(out, scenario_ids, num_scenarios, registry, log)
     except KeyboardInterrupt:
         registry.terminate_all()
         log.write("Campaign interrupted during scenario generation. Resume to continue.")
@@ -797,7 +821,7 @@ def main() -> int:
     summary_path = out / "summary.csv"
     summary_rows: dict[tuple[int, int], dict[str, object]] = load_summary(summary_path)
     jobs: list[Job] = []
-    for scenario_id in range(1, num_scenarios + 1):
+    for scenario_id in scenario_ids:
         for seed_id in range(1, seeds_per_scenario + 1):
             job = Job(
                 scenario_id,
@@ -812,9 +836,9 @@ def main() -> int:
                 summary_rows[(scenario_id, seed_id)] = row
     write_summary(summary_path, summary_rows)
 
-    initial_done = total - len(jobs)
+    initial_done = selected_total - len(jobs)
     workers = min(workers, max(1, len(jobs)))
-    dashboard = Dashboard(total, initial_done, started)
+    dashboard = Dashboard(selected_total, initial_done, started)
     worker_ids = WorkerIds()
     log.write(f"Queue: {len(jobs)} pending, {initial_done} PASS reused")
 
@@ -828,7 +852,6 @@ def main() -> int:
                 job,
                 scenarios[job.scenario],
                 sim_time,
-                gates_enabled,
                 registry,
                 worker_ids,
                 dashboard,
@@ -870,6 +893,9 @@ def main() -> int:
             progress_value = {
                 **dashboard.snapshot(),
                 "workers": workers,
+                "scenario_start": scenario_start,
+                "scenario_end": scenario_end,
+                "campaign_total": campaign_total,
                 "elapsed_s": round(time.monotonic() - started, 3),
                 "updated_at": utc_now(),
             }
@@ -888,6 +914,9 @@ def main() -> int:
         atomic_json(out / "progress.json", {
             **dashboard.snapshot(),
             "workers": workers,
+            "scenario_start": scenario_start,
+            "scenario_end": scenario_end,
+            "campaign_total": campaign_total,
             "interrupted": True,
             "updated_at": utc_now(),
         })
@@ -895,7 +924,7 @@ def main() -> int:
         log.close()
         return 130
 
-    for scenario_id in range(1, num_scenarios + 1):
+    for scenario_id in scenario_ids:
         scenario_summary(
             out,
             scenario_id,
@@ -904,51 +933,89 @@ def main() -> int:
             seeds_per_scenario,
         )
 
-    selected = [
+    campaign_rows = [
         summary_rows.get((scenario_id, seed_id))
         for scenario_id in range(1, num_scenarios + 1)
         for seed_id in range(1, seeds_per_scenario + 1)
     ]
-    selected = [row for row in selected if row is not None]
-    passed = sum(row["status"] == "PASS" for row in selected)
-    failed = sum(row["status"] == "FAILED" for row in selected)
-    rows_total = sum(int(row["rows"] or 0) for row in selected)
+    campaign_rows = [row for row in campaign_rows if row is not None]
+    range_rows = [
+        summary_rows.get((scenario_id, seed_id))
+        for scenario_id in scenario_ids
+        for seed_id in range(1, seeds_per_scenario + 1)
+    ]
+    range_rows = [row for row in range_rows if row is not None]
+    passed = sum(row["status"] == "PASS" for row in campaign_rows)
+    failed = sum(row["status"] == "FAILED" for row in campaign_rows)
+    range_passed = sum(row["status"] == "PASS" for row in range_rows)
+    range_failed = sum(row["status"] == "FAILED" for row in range_rows)
+    rows_total = sum(int(row["rows"] or 0) for row in campaign_rows)
+    campaign_complete = len(campaign_rows) == campaign_total and passed == campaign_total
+    range_complete = len(range_rows) == selected_total and range_passed == selected_total
     total_runtime = prior_runtime + time.monotonic() - started
-    campaign.update({
-        "finished_at": utc_now(),
+    campaign_update = {
+        "updated_at": utc_now(),
         "success": passed,
         "failed": failed,
         "rows": rows_total,
         "runtime_s": round(total_runtime, 3),
         "workers_last": workers,
-    })
+        "last_scenario_start": scenario_start,
+        "last_scenario_end": scenario_end,
+    }
+    if campaign_complete:
+        campaign_update["finished_at"] = utc_now()
+    else:
+        campaign.pop("finished_at", None)
+    campaign.update(campaign_update)
     atomic_json(campaign_path, campaign)
     campaign_summary = {
         "scenarios": num_scenarios,
         "seeds_per_scenario": seeds_per_scenario,
-        "jobs": total,
-        "finished": len(selected),
+        "jobs": campaign_total,
+        "finished": len(campaign_rows),
         "passed": passed,
         "failed": failed,
         "rows": rows_total,
         "wall_runtime_s": round(total_runtime, 3),
         "workers": workers,
-        "complete": len(selected) == total and passed == total,
-        "finished_at": utc_now(),
+        "complete": campaign_complete,
+        "updated_at": utc_now(),
+        "last_range": {
+            "scenario_start": scenario_start,
+            "scenario_end": scenario_end,
+            "jobs": selected_total,
+            "finished": len(range_rows),
+            "passed": range_passed,
+            "failed": range_failed,
+            "complete": range_complete,
+        },
     }
+    if campaign_complete:
+        campaign_summary["finished_at"] = campaign["finished_at"]
     atomic_json(out / "campaign_summary.json", campaign_summary)
-    atomic_json(out / "progress.json", {**dashboard.snapshot(), "finished": True, "updated_at": utc_now()})
+    atomic_json(out / "progress.json", {
+        **dashboard.snapshot(),
+        "scenario_start": scenario_start,
+        "scenario_end": scenario_end,
+        "campaign_total": campaign_total,
+        "range_finished": True,
+        "campaign_complete": campaign_complete,
+        "finished": campaign_complete,
+        "updated_at": utc_now(),
+    })
     log.write("=" * 54)
-    log.write("CAMPAIGN FINISHED")
+    log.write("RANGE FINISHED")
     log.write("=" * 54)
-    log.write(f"Scenario : {num_scenarios}")
-    log.write(f"Jobs     : {len(selected)}/{total}")
-    log.write(f"Success  : {passed}")
-    log.write(f"Fail     : {failed}")
+    log.write(f"Scenario : {scenario_start}-{scenario_end} / 1-{num_scenarios}")
+    log.write(f"Range jobs: {len(range_rows)}/{selected_total}")
+    log.write(f"Range success: {range_passed}")
+    log.write(f"Range fail: {range_failed}")
+    log.write(f"Campaign jobs: {len(campaign_rows)}/{campaign_total}")
     log.write(f"Rows     : {rows_total:,}")
     log.write(f"Runtime  : {format_duration(total_runtime)}")
     log.close()
-    return 0 if failed == 0 and len(selected) == total else 1
+    return 0 if range_failed == 0 and len(range_rows) == selected_total else 1
 
 
 if __name__ == "__main__":

@@ -51,3 +51,27 @@ sim-config: CANH BAO 10 key co trong registry nhung scenario nay KHONG doc:
 [heartbeat] scenario=3 seed=9 rngRun=29 sim=270.0/300.0s (90.0%) wall=3150.5s rows=105285 probe_attempts=1168740 cbr_attempts=10368
 [heartbeat] scenario=3 seed=9 rngRun=29 sim=280.0/300.0s (93.3%) wall=3301.4s rows=108399 probe_attempts=1212174 cbr_attempts=10909
 [heartbeat] scenario=3 seed=9 rngRun=29 sim=290.0/300.0s (96.7%) wall=3448.1s rows=112899 probe_attempts=1254931 cbr_attempts=11419
+[heartbeat] scenario=3 seed=9 rngRun=29 sim=300.0/300.0s (100.0%) wall=3622.6s rows=115828 probe_attempts=1298325 cbr_attempts=11678
+--- link-dataset-fanet P2, seed 9 ---
+  rows             : 117315  (bo 108421 thieu RSSI, 165 thieu trial)
+  degree (P1 def)  : 4.18766  (setup random; co lap 1.87229% node-thoi-gian)
+  beacon           : 257996 phat / 1660594 nhan
+  probe attempts   : 1298332  fails 1170798
+  cbr attempts     : 11678  fails 8725
+  mac_loss (attempt): 0.900392
+  fails unattributed: 0  slipped windows: 87
+  PSDU probe/cbr   : 576 / 576 B
+  queue            : dequeued 978576, expired 0, tran 0
+  queue delay ms   : p50 2.08691  p90 5.2918  p99 11.1137  max 70.3127
+  cbr app          : tx 4858  rx 1629
+  cbr hop (flow-giay): no_route=1192  1 hop=210  2 hop=214  3 hop=109  4 hop=68  5 hop=3  6 hop=3  7 hop=1  
+  --- airtime theo nguon (% cua 300 s, toan mang, chua chia mien tranh chap) ---
+    beacon       29.93 s     9.98 %   (257996 frame)
+    probe      1028.28 s   342.76 %   (1298332 frame)
+    cbr           9.25 s     3.08 %   (11678 frame)
+    olsr          5.44 s     1.81 %   (19901 frame)
+    arp           0.00 s     0.00 %   (0 frame)
+    ctrl          9.39 s     3.13 %   (213403 frame)
+    mgmt          0.00 s     0.00 %   (0 frame)
+    other         0.00 s     0.00 %   (0 frame)
+  ghi vao          : /home/hung/workspace/ns3/dataset_1000x10/scenario_0003/seed_0009/{rows.csv,positions.csv,meta.json,summary.json}

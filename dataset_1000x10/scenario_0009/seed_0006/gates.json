@@ -1,0 +1,92 @@
+{
+  "rows": 117611,
+  "gates": {
+    "degree trung bình": {
+      "threshold": ">= 4.0",
+      "value": "4.21",
+      "pass": true
+    },
+    "% dòng retry_rate > 0": {
+      "threshold": ">= 10.0%",
+      "value": "92.8%",
+      "pass": true
+    },
+    "% dòng 0 < pdr < 1": {
+      "threshold": ">= 10.0%",
+      "value": "43.6%",
+      "pass": true
+    },
+    "MAC loss tổng (lưới sập)": {
+      "threshold": "<= 85.0%",
+      "value": "89.5%",
+      "pass": false
+    },
+    "% dòng pdr ghim 0/1": {
+      "threshold": "<= 90.0%",
+      "value": "56.4%",
+      "pass": true
+    },
+    "dòng có fails > 0": {
+      "threshold": "> 0",
+      "value": "112391",
+      "pass": true
+    }
+  },
+  "retry_empty_pct": 2.7012779416891277,
+  "probe_only_pct": 99.42437357049936,
+  "median_trials": 7.0,
+  "trials_p10_p25_p50_p90": [
+    4.0,
+    6.0,
+    7.0,
+    8.0
+  ],
+  "trials_below_5_pct": 15.622688353980495,
+  "fails_slipped_windows": 79,
+  "q_by_bin_probe_cbr": {
+    "0-200 m": {
+      "q_probe": 0.2063369397217929,
+      "q_cbr": 0.17952394608546027,
+      "trials_probe": 32350.0,
+      "trials_cbr": 3487.0
+    },
+    "200-400 m": {
+      "q_probe": 0.6922879916607507,
+      "q_cbr": 0.6971246006389776,
+      "trials_probe": 222562.0,
+      "trials_cbr": 12520.0
+    },
+    "400-600 m": {
+      "q_probe": 0.9294211943803756,
+      "q_cbr": 0.9289607877615614,
+      "trials_probe": 356821.0,
+      "trials_cbr": 5687.0
+    },
+    "600-800 m": {
+      "q_probe": 0.9815149240103078,
+      "q_cbr": 0.9878419452887538,
+      "trials_probe": 147849.0,
+      "trials_cbr": 658.0
+    },
+    ">=800 m": {
+      "q_probe": 0.9965787598004276,
+      "q_cbr": 1.0,
+      "trials_probe": 14030.0,
+      "trials_cbr": 8.0
+    }
+  },
+  "pinned_hi_pct": 4.438360357449558,
+  "pinned_lo_pct": 51.937318788208586,
+  "degree_vs_p1": {
+    "measured": 4.210089,
+    "p1": 6.14
+  },
+  "near_q": {
+    "value": 0.6278850874246547,
+    "max_dist_m": 400.0,
+    "trials": 270919.0
+  },
+  "corr_retry_rssi_pearson": -0.7799039223549801,
+  "corr_retry_rssi_spearman": -0.7079328961891792,
+  "all_pass": false
+}
