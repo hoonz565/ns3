@@ -50,3 +50,28 @@ sim-config: CANH BAO 10 key co trong registry nhung scenario nay KHONG doc:
 [heartbeat] scenario=35 seed=9 rngRun=349 sim=260.0/300.0s (86.7%) wall=546.2s rows=19156 probe_attempts=153780 cbr_attempts=56509
 [heartbeat] scenario=35 seed=9 rngRun=349 sim=270.0/300.0s (90.0%) wall=567.5s rows=20115 probe_attempts=160344 cbr_attempts=58881
 [heartbeat] scenario=35 seed=9 rngRun=349 sim=280.0/300.0s (93.3%) wall=589.9s rows=20780 probe_attempts=166621 cbr_attempts=61216
+[heartbeat] scenario=35 seed=9 rngRun=349 sim=290.0/300.0s (96.7%) wall=619.1s rows=21700 probe_attempts=172256 cbr_attempts=63677
+[heartbeat] scenario=35 seed=9 rngRun=349 sim=300.0/300.0s (100.0%) wall=642.7s rows=22240 probe_attempts=177416 cbr_attempts=66046
+--- link-dataset-fanet P2, seed 9 ---
+  rows             : 22508  (bo 6697 thieu RSSI, 10 thieu trial)
+  degree (P1 def)  : 5.37757  (setup random; co lap 0.65189% node-thoi-gian)
+  beacon           : 77988 phat / 442793 nhan
+  probe attempts   : 177417  fails 137783
+  cbr attempts     : 66046  fails 55934
+  mac_loss (attempt): 0.795673
+  fails unattributed: 0  slipped windows: 16
+  PSDU probe/cbr   : 576 / 576 B
+  queue            : dequeued 222522, expired 0, tran 0
+  queue delay ms   : p50 1.54662  p90 2.71938  p99 4.62815  max 12.0853
+  cbr app          : tx 30464  rx 8005
+  cbr hop (flow-giay): no_route=199  1 hop=730  2 hop=644  3 hop=156  4 hop=58  5 hop=7  6 hop=6  
+  --- airtime theo nguon (% cua 300 s, toan mang, chua chia mien tranh chap) ---
+    beacon        9.05 s     3.02 %   (77988 frame)
+    probe       140.51 s    46.84 %   (177417 frame)
+    cbr          52.31 s    17.44 %   (66046 frame)
+    olsr          1.38 s     0.46 %   (5539 frame)
+    arp           0.00 s     0.00 %   (0 frame)
+    ctrl          3.21 s     1.07 %   (73041 frame)
+    mgmt          0.00 s     0.00 %   (0 frame)
+    other         0.00 s     0.00 %   (0 frame)
+  ghi vao          : /home/hung/workspace/ns3/dataset_1000x10/scenario_0035/seed_0009/{rows.csv,positions.csv,meta.json,summary.json}
