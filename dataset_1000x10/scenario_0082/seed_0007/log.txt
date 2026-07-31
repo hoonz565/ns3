@@ -1,0 +1,31 @@
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[run_manifest] CẢNH BÁO: GIT DIRTY — 350 file thay đổi/untracked (dataset_1000x10/progress.json, dataset_1000x10/summary.csv, dataset_1000x10/scenario_0051/scenario_summary.json, dataset_1000x10/scenario_0051/seed_0001/, dataset_1000x10/scenario_0051/seed_0002/...). Kết quả KHÔNG tái lập được từ SHA 792475787. Commit trước khi chạy batch thật.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+[run_manifest] dataset_1000x10/scenario_0082/seed_0007/run_manifest.json
+[run_manifest] phase=P2-random-campaign seed=7 sha=792475787 dirty=True
+sim-config: CANH BAO 10 key co trong registry nhung scenario nay KHONG doc:
+   gateDegreeMin, gateLossMax, gateMidMin, gateNearQMax, gatePinnedMax, gateRetryMin, rHalfM, seedsCalibration, seedsTest, seedsTrain
+   Binh thuong khi mot scenario nap ca file nominal (vi du seedsTrain, gate* la cua Python).
+   NHUNG neu mot tham so vat ly nam trong danh sach nay thi scenario dang chay bang default, khong bang config.
+--- setup thuc te cua seed ---
+  scenario         : 82
+  nodes            : 57
+  area             : 1871.09 x 1049.52 m
+  altitude         : Uniform[100, 600) m
+  speed            : Uniform[15, 30) m/s
+  gm alpha         : 0.505159
+  tx power         : 19.1973 dBm
+  CBR rate         : 19 pkt/s
+  seed             : 7
+  rng run          : 817
+  simulation time  : 300 s
+  output           : /home/hung/workspace/ns3/dataset_1000x10/scenario_0082/seed_0007
+[heartbeat] scenario=82 seed=7 rngRun=817 sim=10.0/300.0s (3.3%) wall=41.6s rows=1344 probe_attempts=30907 cbr_attempts=812
+[heartbeat] scenario=82 seed=7 rngRun=817 sim=20.0/300.0s (6.7%) wall=84.8s rows=3788 probe_attempts=61969 cbr_attempts=1990
+[heartbeat] scenario=82 seed=7 rngRun=817 sim=30.0/300.0s (10.0%) wall=128.0s rows=7413 probe_attempts=91794 cbr_attempts=3351
+[heartbeat] scenario=82 seed=7 rngRun=817 sim=40.0/300.0s (13.3%) wall=170.5s rows=9779 probe_attempts=120081 cbr_attempts=5361
+[heartbeat] scenario=82 seed=7 rngRun=817 sim=50.0/300.0s (16.7%) wall=209.7s rows=13255 probe_attempts=147992 cbr_attempts=6545
+[heartbeat] scenario=82 seed=7 rngRun=817 sim=60.0/300.0s (20.0%) wall=247.9s rows=15646 probe_attempts=175852 cbr_attempts=7684
+[heartbeat] scenario=82 seed=7 rngRun=817 sim=70.0/300.0s (23.3%) wall=286.8s rows=19419 probe_attempts=204540 cbr_attempts=8399

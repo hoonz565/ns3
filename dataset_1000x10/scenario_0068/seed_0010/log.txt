@@ -1,0 +1,77 @@
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[run_manifest] CẢNH BÁO: GIT DIRTY — 199 file thay đổi/untracked (dataset_1000x10/progress.json, dataset_1000x10/summary.csv, dataset_1000x10/scenario_0051/scenario_summary.json, dataset_1000x10/scenario_0051/seed_0001/, dataset_1000x10/scenario_0051/seed_0002/...). Kết quả KHÔNG tái lập được từ SHA 792475787. Commit trước khi chạy batch thật.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+[run_manifest] dataset_1000x10/scenario_0068/seed_0010/run_manifest.json
+[run_manifest] phase=P2-random-campaign seed=10 sha=792475787 dirty=True
+sim-config: CANH BAO 10 key co trong registry nhung scenario nay KHONG doc:
+   gateDegreeMin, gateLossMax, gateMidMin, gateNearQMax, gatePinnedMax, gateRetryMin, rHalfM, seedsCalibration, seedsTest, seedsTrain
+   Binh thuong khi mot scenario nap ca file nominal (vi du seedsTrain, gate* la cua Python).
+   NHUNG neu mot tham so vat ly nam trong danh sach nay thi scenario dang chay bang default, khong bang config.
+--- setup thuc te cua seed ---
+  scenario         : 68
+  nodes            : 25
+  area             : 1167.88 x 1435.86 m
+  altitude         : Uniform[100, 600) m
+  speed            : Uniform[15, 30) m/s
+  gm alpha         : 0.651796
+  tx power         : 21.9854 dBm
+  CBR rate         : 7 pkt/s
+  seed             : 10
+  rng run          : 680
+  simulation time  : 300 s
+  output           : /home/hung/workspace/ns3/dataset_1000x10/scenario_0068/seed_0010
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=10.0/300.0s (3.3%) wall=12.3s rows=556 probe_attempts=8976 cbr_attempts=433
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=20.0/300.0s (6.7%) wall=25.2s rows=1675 probe_attempts=18084 cbr_attempts=1358
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=30.0/300.0s (10.0%) wall=37.2s rows=3322 probe_attempts=27098 cbr_attempts=2300
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=40.0/300.0s (13.3%) wall=48.8s rows=4396 probe_attempts=36277 cbr_attempts=3178
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=50.0/300.0s (16.7%) wall=60.1s rows=5986 probe_attempts=45593 cbr_attempts=3987
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=60.0/300.0s (20.0%) wall=72.5s rows=7083 probe_attempts=55050 cbr_attempts=4839
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=70.0/300.0s (23.3%) wall=84.9s rows=8762 probe_attempts=64271 cbr_attempts=5590
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=80.0/300.0s (26.7%) wall=97.5s rows=9873 probe_attempts=73493 cbr_attempts=6431
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=90.0/300.0s (30.0%) wall=109.1s rows=11501 probe_attempts=82759 cbr_attempts=7180
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=100.0/300.0s (33.3%) wall=120.7s rows=12539 probe_attempts=92100 cbr_attempts=8056
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=110.0/300.0s (36.7%) wall=132.6s rows=14143 probe_attempts=101553 cbr_attempts=8901
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=120.0/300.0s (40.0%) wall=144.8s rows=15255 probe_attempts=110914 cbr_attempts=9789
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=130.0/300.0s (43.3%) wall=157.2s rows=16905 probe_attempts=120315 cbr_attempts=10700
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=140.0/300.0s (46.7%) wall=170.0s rows=18014 probe_attempts=129750 cbr_attempts=11563
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=150.0/300.0s (50.0%) wall=182.3s rows=19672 probe_attempts=138943 cbr_attempts=12397
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=160.0/300.0s (53.3%) wall=194.5s rows=20782 probe_attempts=148080 cbr_attempts=13264
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=170.0/300.0s (56.7%) wall=206.1s rows=22404 probe_attempts=157108 cbr_attempts=14089
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=180.0/300.0s (60.0%) wall=217.1s rows=23436 probe_attempts=166014 cbr_attempts=14920
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=190.0/300.0s (63.3%) wall=229.3s rows=25008 probe_attempts=175185 cbr_attempts=15758
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=200.0/300.0s (66.7%) wall=241.6s rows=26102 probe_attempts=184391 cbr_attempts=16547
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=210.0/300.0s (70.0%) wall=253.4s rows=27743 probe_attempts=193740 cbr_attempts=17386
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=220.0/300.0s (73.3%) wall=265.5s rows=28841 probe_attempts=203171 cbr_attempts=18260
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=230.0/300.0s (76.7%) wall=276.8s rows=30466 probe_attempts=212416 cbr_attempts=19132
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=240.0/300.0s (80.0%) wall=288.1s rows=31483 probe_attempts=221400 cbr_attempts=20074
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=250.0/300.0s (83.3%) wall=299.4s rows=33050 probe_attempts=230535 cbr_attempts=20952
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=260.0/300.0s (86.7%) wall=310.5s rows=34109 probe_attempts=239707 cbr_attempts=21901
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=270.0/300.0s (90.0%) wall=322.0s rows=35686 probe_attempts=249032 cbr_attempts=22801
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=280.0/300.0s (93.3%) wall=333.6s rows=36755 probe_attempts=258189 cbr_attempts=23635
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=290.0/300.0s (96.7%) wall=346.5s rows=38332 probe_attempts=267345 cbr_attempts=24533
+[heartbeat] scenario=68 seed=10 rngRun=680 sim=300.0/300.0s (100.0%) wall=359.0s rows=39429 probe_attempts=276466 cbr_attempts=25406
+--- link-dataset-fanet P2, seed 10 ---
+  rows             : 39966  (bo 3833 thieu RSSI, 5 thieu trial)
+  degree (P1 def)  : 11.4885  (setup random; co lap 0% node-thoi-gian)
+  beacon           : 75007 phat / 830253 nhan
+  probe attempts   : 276469  fails 195919
+  cbr attempts     : 25406  fails 21516
+  mac_loss (attempt): 0.720282
+  fails unattributed: 0  slipped windows: 18
+  PSDU probe/cbr   : 576 / 576 B
+  queue            : dequeued 262088, expired 0, tran 0
+  queue delay ms   : p50 1.769  p90 3.67616  p99 7.06923  max 18.2776
+  cbr app          : tx 12373  rx 3703
+  cbr hop (flow-giay): no_route=37  1 hop=1050  2 hop=706  3 hop=7  
+  --- airtime theo nguon (% cua 300 s, toan mang, chua chia mien tranh chap) ---
+    beacon        8.70 s     2.90 %   (75007 frame)
+    probe       218.96 s    72.99 %   (276469 frame)
+    cbr          20.12 s     6.71 %   (25406 frame)
+    olsr          1.48 s     0.49 %   (4668 frame)
+    arp           0.00 s     0.00 %   (0 frame)
+    ctrl          4.93 s     1.64 %   (112105 frame)
+    mgmt          0.00 s     0.00 %   (0 frame)
+    other         0.00 s     0.00 %   (0 frame)
+  ghi vao          : /home/hung/workspace/ns3/dataset_1000x10/scenario_0068/seed_0010/{rows.csv,positions.csv,meta.json,summary.json}
