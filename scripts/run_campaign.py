@@ -600,8 +600,6 @@ def run_job(
                 on_line=lambda line: dashboard.heartbeat(worker, line),
             )
             ensure_alias(job.seed_dir / "stdout.log", "log.txt")
-            if (job.seed_dir / "rows.csv").is_file():
-                ensure_alias(job.seed_dir / "link_dataset.csv", "rows.csv")
             required = (
                 job.seed_dir / "meta.json",
                 job.seed_dir / "summary.json",
