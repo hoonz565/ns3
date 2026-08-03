@@ -1,0 +1,43 @@
+services:
+  ns3:
+    image: "${NS3_IMAGE:-ns3-research:local}"
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        USER_ID: "${HOST_UID:-1000}"
+        GROUP_ID: "${HOST_GID:-1000}"
+        VCS_REF: "${VCS_REF:-local}"
+    init: true
+    stdin_open: true
+    tty: true
+    command: ["sleep", "infinity"]
+    working_dir: /workspace/ns-3
+    environment:
+      NS3_DATA_DIR: /data
+      MPLBACKEND: Agg
+      MPLCONFIGDIR: /home/ns3/.cache/matplotlib
+      GIT_OPTIONAL_LOCKS: "0"
+      GIT_INDEX_FILE: /tmp/ns3-runtime-git-index
+    volumes:
+      - type: bind
+        source: "${NS3_DATASET_DIR:?Set NS3_DATASET_DIR to an existing host directory}"
+        target: /data
+      - type: bind
+        source: ./.git
+        target: /workspace/ns-3/.git
+        read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          test -x build/scratch/linkscore/ns3.45-link-dataset-fanet-default
+          && test -w /data
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
