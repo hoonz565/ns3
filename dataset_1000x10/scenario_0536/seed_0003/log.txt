@@ -1,0 +1,44 @@
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[run_manifest] CẢNH BÁO: GIT DIRTY — 375 file thay đổi/untracked (dataset_1000x10/progress.json, dataset_1000x10/scenario_0520/seed_0001/log.txt, dataset_1000x10/scenario_0520/seed_0001/positions.csv, dataset_1000x10/scenario_0520/seed_0001/rows.csv, dataset_1000x10/scenario_0520/seed_0001/run_manifest.json...). Kết quả KHÔNG tái lập được từ SHA 3fc903f5b. Commit trước khi chạy batch thật.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+[run_manifest] dataset_1000x10/scenario_0536/seed_0003/run_manifest.json
+[run_manifest] phase=P2-random-campaign seed=3 sha=3fc903f5b dirty=True
+sim-config: CANH BAO 10 key co trong registry nhung scenario nay KHONG doc:
+   gateDegreeMin, gateLossMax, gateMidMin, gateNearQMax, gatePinnedMax, gateRetryMin, rHalfM, seedsCalibration, seedsTest, seedsTrain
+   Binh thuong khi mot scenario nap ca file nominal (vi du seedsTrain, gate* la cua Python).
+   NHUNG neu mot tham so vat ly nam trong danh sach nay thi scenario dang chay bang default, khong bang config.
+--- setup thuc te cua seed ---
+  scenario         : 536
+  nodes            : 56
+  area             : 1911.3 x 2443.91 m
+  altitude         : Uniform[100, 600) m
+  speed            : Uniform[15, 30) m/s
+  gm alpha         : 0.555037
+  tx power         : 21.8161 dBm
+  CBR rate         : 11 pkt/s
+  seed             : 3
+  rng run          : 5353
+  simulation time  : 300 s
+  output           : /home/hung/workspace/ns3/dataset_1000x10/scenario_0536/seed_0003
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=10.0/300.0s (3.3%) wall=41.7s rows=1111 probe_attempts=22686 cbr_attempts=0
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=20.0/300.0s (6.7%) wall=88.8s rows=3276 probe_attempts=46979 cbr_attempts=536
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=30.0/300.0s (10.0%) wall=134.9s rows=6599 probe_attempts=72290 cbr_attempts=1436
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=40.0/300.0s (13.3%) wall=182.2s rows=8795 probe_attempts=98322 cbr_attempts=2205
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=50.0/300.0s (16.7%) wall=229.5s rows=12127 probe_attempts=124530 cbr_attempts=2915
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=60.0/300.0s (20.0%) wall=276.1s rows=14329 probe_attempts=150777 cbr_attempts=3550
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=70.0/300.0s (23.3%) wall=321.5s rows=17659 probe_attempts=176004 cbr_attempts=4147
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=80.0/300.0s (26.7%) wall=367.3s rows=19850 probe_attempts=200525 cbr_attempts=5185
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=90.0/300.0s (30.0%) wall=413.6s rows=22996 probe_attempts=224623 cbr_attempts=6433
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=100.0/300.0s (33.3%) wall=460.5s rows=25113 probe_attempts=249084 cbr_attempts=7618
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=110.0/300.0s (36.7%) wall=508.7s rows=28339 probe_attempts=274784 cbr_attempts=9457
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=120.0/300.0s (40.0%) wall=556.5s rows=30499 probe_attempts=301115 cbr_attempts=10486
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=130.0/300.0s (43.3%) wall=608.0s rows=33808 probe_attempts=328318 cbr_attempts=11590
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=140.0/300.0s (46.7%) wall=656.9s rows=36042 probe_attempts=356428 cbr_attempts=12438
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=150.0/300.0s (50.0%) wall=706.3s rows=39499 probe_attempts=384027 cbr_attempts=13305
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=160.0/300.0s (53.3%) wall=754.0s rows=41804 probe_attempts=410773 cbr_attempts=13896
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=170.0/300.0s (56.7%) wall=802.2s rows=45122 probe_attempts=435939 cbr_attempts=14504
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=180.0/300.0s (60.0%) wall=850.1s rows=47267 probe_attempts=459961 cbr_attempts=15366
+[heartbeat] scenario=536 seed=3 rngRun=5353 sim=190.0/300.0s (63.3%) wall=897.8s rows=50467 probe_attempts=483317 cbr_attempts=16011
+[heartbeat] scenar
