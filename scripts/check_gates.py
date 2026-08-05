@@ -367,7 +367,7 @@ def main(argv=None) -> int:
     print(f"  đo lường (beacon+probe) / ứng dụng (cbr+olsr): "
           f"{meas:.1f} / {app:.1f} s = {meas / app if app else float('inf'):.2f}×")
 
-    print("\nq per-attempt theo bin, tách off-path (probe) / on-path (CBR) — và CBR")
+    print("\nq final-delivery theo bin, tách off-path (probe) / on-path (CBR) — và CBR")
     print("dồn trials vào bin nào (bằng chứng cơ chế min-hop chọn link dài):")
     tot_tp = sum(v[0] for v in q_bin.values()) or 1.0
     tot_tc = sum(v[2] for v in q_bin.values()) or 1.0

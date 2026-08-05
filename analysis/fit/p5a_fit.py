@@ -2,13 +2,13 @@
 """P5a — lõi: PCA bước 0, GLM nhị thức trên feature THÔ, ba kiểm chứng,
 thang attenuation. KHÔNG bảng so mô hình, KHÔNG holdout (P5b, sau duyệt).
 
-Thiết kế đọc từ PLAN.md P5 + chỉ định P5a:
+Thiết kế v2 đọc từ `Thiet_ke_LinkScore_OLSR_UAV (2).docx` + chỉ định P5a:
 
 - Tập fit = frozen/split.json fit_seeds (6-29). Holdout 30-35 KHÔNG đọc —
   bất biến cưỡng chế trong code, không chỉ trong lời.
 - Feature THÔ (quy tắc 5): rssi_level [dBm], rssi_slope [dB/s], retry_rate.
-- Nhãn nhị thức per-attempt: (trials_future - fails_future, fails_future) —
-  không post-ARQ, không nhị phân hoá (quy tắc 3).
+- Nhãn nhị thức final-delivery trên unique original packet:
+  (trials_future - fails_future, fails_future), không nhị phân hoá.
 - GLM tự do có intercept (quy tắc 4), cluster-robust theo seed (quy tắc 6).
 - Xuất frozen/weights.json ở THANG LOGIT THÔ — dạng P8 thực chạy: TTT tính
   trên z = b0 + b1·rssi + b2·slope + b3·retry, không trên LinkScore đã clip
@@ -38,13 +38,14 @@ warnings.filterwarnings("ignore")
 import statsmodels.api as sm  # noqa: E402
 
 FEATURES = ["rssi_level", "rssi_slope", "retry_rate"]
-TAU_S = 4.0            # cửa sổ nhãn (conf labelWin) — kiểm chứng vật lý quy tắc 7
-DELTA_S = 4.0          # cửa sổ feature (conf featureWin)
+TAU_S = 1.0            # cửa sổ target tương lai (conf labelWin)
+DELTA_S = 1.0          # cửa sổ input (conf featureWin)
 S_T2 = DELTA_S ** 2 / 12.0   # phương sai thời điểm mẫu beacon ~ uniform trên Δ
 # σ fading theo tier Nakagami — ĐO Ở P0 (không phải lý thuyết):
 #   m=8 (d<100), m=5 (100<=d<300), m=3 (d>=300); nakagamiD1/D2 = 100/300 m
 SIGMA_TIER = [(100.0, 1.594), (300.0, 2.026), (float("inf"), 2.755)]
-N_BANDS = [(3, 9), (10, 19), (20, 29), (30, 10 ** 9)]
+# rssi_n is now the number of valid 100 ms aggregates, hence 3 <= n <= 10.
+N_BANDS = [(3, 4), (5, 6), (7, 8), (9, 10)]
 BOOT_B = 200
 BOOT_SEED = 20260727
 
@@ -306,7 +307,7 @@ def main():
     weights = {
         "artifact": args.weights, "phase": "P5a", "created": "2026-07-27", "frozen": True,
         "model": "binomial GLM (logit), RAW features, free intercept, cluster-robust by seed",
-        "label": "per-attempt: successes = trials_future - fails_future (pooled probe+cbr)",
+        "label": "final-delivery unique packets: successes = trials_future - fails_future (pooled probe+cbr)",
         "fit_set": {"seeds": fit_seeds, "n_rows_used": n_used,
                     "n_rows_missing_retry": n_missing},
         "provenance": {

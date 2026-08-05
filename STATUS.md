@@ -3,7 +3,16 @@
 > File này là nguồn chân lý về **đang ở đâu**. Đọc đầu tiên mỗi session,
 > cập nhật cuối mỗi phase (WORKFLOW.md mục 1).
 
-Cập nhật lần cuối: 2026-07-30
+Cập nhật lần cuối: 2026-08-05
+
+## Chuyển thiết kế v2 — 2026-08-05
+
+`Thiet_ke_LinkScore_OLSR_UAV (2).docx` là nguồn chân lý hiện hành. Harness
+Tier 2 đã chuyển sang W = 1 s, prediction horizon Δ = 1 s, tumbling stride
+1 s và 10 aggregate bin × 100 ms. RSSI mean/slope và retry ratio lấy từ
+window t; target là final-delivery PDR trên unique original packet của window
+kế tiếp. Dataset, normalization và weights frozen hiện có vẫn là v1 (4 s,
+per-attempt), chỉ giữ để truy vết và tuyệt đối không trộn vào campaign v2.
 
 ## Phase hiện tại
 

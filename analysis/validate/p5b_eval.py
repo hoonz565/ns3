@@ -7,7 +7,8 @@ This script deliberately contains no fitting code.  It reads only:
   - frozen/normalization.json
   - data/train/seed-{30..35}/rows_norm.csv
 
-The primary unit is an individual future transmission attempt.  Because the
+This is the legacy v1 frozen evaluation. Its primary unit is an individual
+future transmission attempt. Because the
 CSV stores binomial counts, metrics are computed exactly with successes and
 failures as integer weights; no row expansion or post-ARQ label is used.
 """
@@ -610,7 +611,7 @@ def main() -> None:
         ax.plot(x, y, marker="o", linewidth=1.7, label=MODEL_LABELS[model])
     ax.set(
         xlabel="Mean predicted success probability (fixed 0.1 bins)",
-        ylabel="Observed per-attempt success rate",
+        ylabel="Observed per-attempt success rate (legacy v1)",
         title="P5b holdout calibration — seeds 30–35",
         xlim=(0, 1),
         ylim=(0, 1),
@@ -682,10 +683,10 @@ def main() -> None:
             "holdout_seeds": holdout_seeds,
             "fit_holdout_overlap": [],
             "label": (
-                "per-attempt successes = trials_future - fails_future; "
+                "legacy v1 per-attempt successes = trials_future - fails_future; "
                 "aggregate binomial counts used as exact weights"
             ),
-            "metric_weighting": "per future transmission attempt",
+            "metric_weighting": "legacy v1 per future transmission attempt",
             "log_loss_numerical_clip": "probability clipped to [1e-15, 1-1e-15]",
         },
         "input_sha256": {

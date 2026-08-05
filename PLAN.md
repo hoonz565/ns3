@@ -1,5 +1,11 @@
 # Kế hoạch nghiên cứu — MPC điều khiển HELLO trong OLSR/FANET
 
+> **Override thiết kế v2 (2026-08-05):** `Thiet_ke_LinkScore_OLSR_UAV
+> (2).docx` là nguồn chân lý. W = 1 s, prediction horizon Δ = 1 s, 10 bin
+> 100 ms/window, tumbling stride = 1 s. Feature dùng window t; target là
+> final-delivery PDR của unique original packet trong window kế tiếp. Các đoạn
+> 4 s/per-attempt bên dưới chỉ mô tả v1 và artifact frozen lịch sử.
+
 Phạm vi: **chỉ LinkScore.** NodeScore để future work.
 Trạng thái: **P0**
 

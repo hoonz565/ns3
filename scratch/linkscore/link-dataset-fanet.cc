@@ -20,13 +20,9 @@
  *   2. Mau so moi ti le MAC tu MonitorSnifferTx (PPDU len song), khong tu Send()
  *   3. Probe unicast L2 qua NetDevice::Send, Ethertype 0x88b5
  *
- * Nhan per-attempt, KHONG post-ARQ (CLAUDE.md quy tac 3):
- *   trials = so PPDU data unicast len song toi j trong cua so
- *   fails  = so MacTxDataFailed(j) trong cung cua so
- * Fail chi mang dia chi, khong mang packet, nen lop (probe/cbr) cua fail duoc
- * quy ve lop cua ATTEMPT GAN NHAT toi cung dia chi — MAC non-QoS serial hoa
- * tung frame (mot frame data in flight moi luc) nen phep quy nay chinh xac,
- * tru truot bien cua so ~ms (dem o fail_slipped, kep ve trials).
+ * DOCX design v2: W = Delta = 1 s, gom event vao 10 bin 100 ms. Target la
+ * final-delivery PDR: moi sequence-control goc la mot trial, retransmission
+ * khong tao trial moi; frame nhan thanh cong duoc dem dung mot lan.
  *
  * Tach thoi gian cuong che bang CAU TRUC: dong chi duoc ghi tai t+tau, khi
  * cua so nhan da dong. Hien thuc bang xoay bucket moi labelWin giay — doi hoi
@@ -51,7 +47,9 @@
 #include "ns3/wifi-module.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <deque>
 #include <filesystem>
@@ -75,12 +73,13 @@ constexpr uint16_t ETHERTYPE_BEACON = 0x88b6; // nhu P1
 // ---- tham so chia se cho callback (gan trong main sau khi parse config)
 uint32_t g_N = 0;
 double g_simTime = 300.0;
-double g_labelWin = 4.0;
+double g_labelWin = 1.0;
+double g_aggregateInterval = 0.1;
 double g_neighborTtl = 2.0;
 double g_probeInterval = 0.5;
 uint32_t g_probeBytes = 540;
 uint32_t g_minRssiSamples = 3;
-uint32_t g_minTrials = 2;
+uint32_t g_minTrials = 1;
 uint32_t g_seed = 1;
 
 NodeContainer g_nodes;
@@ -124,13 +123,28 @@ std::vector<std::deque<double>> g_beaconSent; // [i]
 std::vector<double> g_lastHeard;
 std::vector<uint8_t> g_probeLoopActive;
 
-// ---- bucket dem attempt/fail moi cua so labelWin, ben phat la i
+constexpr uint32_t AGGREGATE_BINS = 10;
+
+struct AggregateBin
+{
+    double rssiSum = 0.0;
+    uint32_t beaconCount = 0;
+    uint32_t attempts = 0;
+    uint32_t retries = 0;
+};
+
+// ---- bucket 1 s gom 10 bin 100 ms cho feature va unique packet cho target.
 struct Bucket
 {
     uint32_t attProbe = 0;
     uint32_t failProbe = 0;
     uint32_t attCbr = 0;
     uint32_t failCbr = 0;
+    std::array<AggregateBin, AGGREGATE_BINS> bins{};
+    std::set<uint16_t> txProbe;
+    std::set<uint16_t> rxProbe;
+    std::set<uint16_t> txCbr;
+    std::set<uint16_t> rxCbr;
 };
 
 std::vector<Bucket> g_curr; // cua so dang mo [B-W, B)
@@ -184,6 +198,39 @@ double
 NowSec()
 {
     return Simulator::Now().GetSeconds();
+}
+
+uint32_t
+CurrentAggregateBin()
+{
+    const double within = std::fmod(std::max(0.0, NowSec()), g_labelWin);
+    return std::min(static_cast<uint32_t>(within / g_aggregateInterval), AGGREGATE_BINS - 1);
+}
+
+uint32_t
+IntersectionSize(const std::set<uint16_t>& a, const std::set<uint16_t>& b)
+{
+    uint32_t n = 0;
+    auto i = a.begin();
+    auto j = b.begin();
+    while (i != a.end() && j != b.end())
+    {
+        if (*i < *j)
+        {
+            ++i;
+        }
+        else if (*j < *i)
+        {
+            ++j;
+        }
+        else
+        {
+            ++n;
+            ++i;
+            ++j;
+        }
+    }
+    return n;
 }
 
 size_t
@@ -285,6 +332,12 @@ TxSniffer(uint32_t i,
     }
     const size_t k = Key(i, it->second);
     Bucket& b = g_curr[k];
+    AggregateBin& bin = b.bins[CurrentAggregateBin()];
+    bin.attempts++;
+    if (hdr.IsRetry())
+    {
+        bin.retries++;
+    }
     if (fc == FC_PROBE)
     {
         b.attProbe++;
@@ -292,6 +345,10 @@ TxSniffer(uint32_t i,
         if (g_psduProbe == 0)
         {
             g_psduProbe = pkt->GetSize();
+        }
+        if (!hdr.IsRetry())
+        {
+            b.txProbe.insert(hdr.GetSequenceControl());
         }
     }
     else
@@ -301,6 +358,10 @@ TxSniffer(uint32_t i,
         if (g_psduCbr == 0)
         {
             g_psduCbr = pkt->GetSize();
+        }
+        if (!hdr.IsRetry())
+        {
+            b.txCbr.insert(hdr.GetSequenceControl());
         }
     }
     // Quy tac 12: probe phai cung airtime voi data. Khong tin so hoc
@@ -381,7 +442,19 @@ RxSniffer(uint32_t j,
 {
     WifiMacHeader hdr;
     Mac48Address dst;
-    if (Classify(pkt, hdr, dst) != FC_BEACON)
+    const FrameClass fc = Classify(pkt, hdr, dst);
+    if (fc == FC_PROBE || fc == FC_CBR)
+    {
+        const auto sender = g_macToNode.find(hdr.GetAddr2());
+        if (sender != g_macToNode.end() && dst == g_macs[j])
+        {
+            Bucket& b = g_curr[Key(sender->second, j)];
+            auto& received = (fc == FC_PROBE) ? b.rxProbe : b.rxCbr;
+            received.insert(hdr.GetSequenceControl());
+        }
+        return;
+    }
+    if (fc != FC_BEACON)
     {
         return;
     }
@@ -397,6 +470,9 @@ RxSniffer(uint32_t j,
     }
     g_count.beaconsRecv++;
     g_rssi[Key(i, j)].push_back({NowSec(), signalNoise.signal});
+    AggregateBin& bin = g_curr[Key(i, j)].bins[CurrentAggregateBin()];
+    bin.rssiSum += signalNoise.signal;
+    bin.beaconCount++;
 
     const size_t k = Key(j, i); // chieu nguoc: j vua nghe i -> j probe i
     g_lastHeard[k] = NowSec();
@@ -649,7 +725,11 @@ Rotate()
             }
             const size_t k = Key(i, j);
             const Bucket& lab = g_curr[k];
-            const uint32_t trials = lab.attProbe + lab.attCbr;
+            const uint32_t trialsProbe = lab.txProbe.size();
+            const uint32_t trialsCbr = lab.txCbr.size();
+            const uint32_t recvProbe = IntersectionSize(lab.txProbe, lab.rxProbe);
+            const uint32_t recvCbr = IntersectionSize(lab.txCbr, lab.rxCbr);
+            const uint32_t trials = trialsProbe + trialsCbr;
             if (trials == 0)
             {
                 continue;
@@ -660,18 +740,22 @@ Rotate()
                 continue;
             }
 
-            // RSSI tho trong [f0, f1): mean + OLS slope (quy tac 8 —
-            // khong EWMA, khong tien xu ly).
+            // 10 aggregate sample 100 ms trong [f0,f1). Bin rong duoc bo qua,
+            // khong noi suy; moi bin hop le dong gop mot RSSI mean tai tam bin.
             double sumT = 0;
             double sumY = 0;
             uint32_t n = 0;
-            for (const auto& s : g_rssi[k])
+            uint32_t receivedBeacons = 0;
+            const Bucket& fea = g_prev[k];
+            for (uint32_t binIndex = 0; binIndex < AGGREGATE_BINS; ++binIndex)
             {
-                if (s.t >= f0 && s.t < f1)
+                const AggregateBin& bin = fea.bins[binIndex];
+                if (bin.beaconCount > 0)
                 {
-                    sumT += s.t;
-                    sumY += s.dbm;
+                    sumT += f0 + (binIndex + 0.5) * g_aggregateInterval;
+                    sumY += bin.rssiSum / bin.beaconCount;
                     n++;
+                    receivedBeacons += bin.beaconCount;
                 }
             }
             if (n < g_minRssiSamples)
@@ -683,32 +767,32 @@ Rotate()
             const double meanY = sumY / n;
             double sxx = 0;
             double sxy = 0;
-            for (const auto& s : g_rssi[k])
+            for (uint32_t binIndex = 0; binIndex < AGGREGATE_BINS; ++binIndex)
             {
-                if (s.t >= f0 && s.t < f1)
+                const AggregateBin& bin = fea.bins[binIndex];
+                if (bin.beaconCount > 0)
                 {
-                    sxx += (s.t - meanT) * (s.t - meanT);
-                    sxy += (s.t - meanT) * (s.dbm - meanY);
+                    const double binT = f0 + (binIndex + 0.5) * g_aggregateInterval;
+                    const double binRssi = bin.rssiSum / bin.beaconCount;
+                    sxx += (binT - meanT) * (binT - meanT);
+                    sxy += (binT - meanT) * (binRssi - meanY);
                 }
             }
             const double slope = (sxx > 0) ? sxy / sxx : 0.0;
 
-            // Kep fail <= attempt tung lop: ack-timeout cua attempt cuoi
-            // cua so co the roi sang bucket sau (truot ~ms tren cua so 4 s).
-            uint32_t fp = std::min(lab.failProbe, lab.attProbe);
-            uint32_t fc = std::min(lab.failCbr, lab.attCbr);
-            if (fp != lab.failProbe || fc != lab.failCbr)
-            {
-                g_count.failSlipped++;
-            }
+            // Final-delivery PDR: moi sequence-control goc la mot trial;
+            // chi sequence-control da nhan thanh cong moi duoc tinh la receive.
+            const uint32_t fp = trialsProbe - recvProbe;
+            const uint32_t fc = trialsCbr - recvCbr;
             const uint32_t fails = fp + fc;
 
-            // Feature retry tu cua so truoc. Rong khac 0: khong attempt
-            // thi de trong, KHONG ghi 0 (CLAUDE.md "known traps").
-            const Bucket& fea = g_prev[k];
-            const uint32_t attPast = fea.attProbe + fea.attCbr;
-            const uint32_t failPast =
-                std::min(fea.failProbe, fea.attProbe) + std::min(fea.failCbr, fea.attCbr);
+            uint32_t attPast = 0;
+            uint32_t retryPast = 0;
+            for (const auto& bin : fea.bins)
+            {
+                attPast += bin.attempts;
+                retryPast += bin.retries;
+            }
 
             const auto& sent = g_beaconSent[i];
             const size_t nSent = std::lower_bound(sent.begin(), sent.end(), f1) -
@@ -720,14 +804,14 @@ Rotate()
                       << meanY << ',' << slope << ',' << n << ',';
             if (nSent > 0)
             {
-                g_rowsCsv << static_cast<double>(n) / static_cast<double>(nSent);
+                g_rowsCsv << static_cast<double>(receivedBeacons) / static_cast<double>(nSent);
             }
             g_rowsCsv << ',';
             if (attPast > 0)
             {
-                g_rowsCsv << static_cast<double>(failPast) / attPast;
+                g_rowsCsv << static_cast<double>(retryPast) / attPast;
             }
-            g_rowsCsv << ',' << attPast << ',' << lab.attProbe << ',' << fp << ',' << lab.attCbr
+            g_rowsCsv << ',' << attPast << ',' << trialsProbe << ',' << fp << ',' << trialsCbr
                       << ',' << fc << ',' << trials << ',' << fails << ','
                       << 1.0 - static_cast<double>(fails) / trials << '\n';
             g_count.rows++;
@@ -845,10 +929,11 @@ main(int argc, char* argv[])
     uint32_t cbrPpsMax = 20;
     uint32_t maxQueueDelayMs = 100;
 
-    double featureWin = 4.0;
-    double labelWin = 4.0;
+    double featureWin = 1.0;
+    double labelWin = 1.0;
+    double aggregateInterval = 0.1;
     uint32_t minRssiSamples = 3;
-    uint32_t minTrials = 2;
+    uint32_t minTrials = 1;
 
     linkscore::SimConfig cfg;
     cfg.Load(linkscore::ConfigPathsFromArgv(argc, argv),
@@ -925,6 +1010,7 @@ main(int argc, char* argv[])
     cfg.Add(cmd, "maxQueueDelayMs", "WifiMacQueue::MaxDelay (ms)", maxQueueDelayMs);
     cfg.Add(cmd, "featureWin", "Cua so feature Delta (s)", featureWin);
     cfg.Add(cmd, "labelWin", "Cua so nhan tau (s)", labelWin);
+    cfg.Add(cmd, "aggregateInterval", "Khoang gom event thanh aggregate sample (s)", aggregateInterval);
     cfg.Add(cmd, "minRssiSamples", "So mau RSSI toi thieu moi dong", minRssiSamples);
     cfg.Add(cmd, "minTrials", "So trial toi thieu moi dong", minTrials);
     cmd.Parse(argc, argv);
@@ -941,6 +1027,10 @@ main(int argc, char* argv[])
         // thoi gian — dung ngay thay vi im lang do sai cua so.
         NS_FATAL_ERROR("featureWin (" << featureWin << ") != labelWin (" << labelWin
                                       << "): xoay bucket gia dinh hai cua so bang nhau");
+    }
+    if (std::abs(featureWin - aggregateInterval * AGGREGATE_BINS) > 1e-9)
+    {
+        NS_FATAL_ERROR("featureWin phai bang 10 * aggregateInterval");
     }
     if (probeBytes != cbrBytes + 28)
     {
@@ -1047,6 +1137,7 @@ main(int argc, char* argv[])
     g_seed = seed;
     g_simTime = simTime;
     g_labelWin = labelWin;
+    g_aggregateInterval = aggregateInterval;
     g_neighborTtl = neighborTtl;
     g_probeInterval = probeInterval;
     g_probeBytes = probeBytes;
@@ -1369,6 +1460,9 @@ main(int argc, char* argv[])
          << "  \"max_queue_delay_ms\": " << maxQueueDelayMs << ",\n"
          << "  \"feature_win_s\": " << featureWin << ",\n"
          << "  \"label_win_s\": " << labelWin << ",\n"
+         << "  \"aggregate_interval_s\": " << aggregateInterval << ",\n"
+         << "  \"aggregate_bins\": " << AGGREGATE_BINS << ",\n"
+         << "  \"target_definition\": \"unique original packets, final delivery\",\n"
          << "  \"min_rssi_samples\": " << minRssiSamples << ",\n"
          << "  \"min_trials\": " << minTrials << ",\n"
          << "  \"flows\": [";

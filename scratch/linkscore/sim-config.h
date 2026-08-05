@@ -1,5 +1,6 @@
 /*
- * Doc sim-config/*.conf. Dung chung cho moi scenario cua du an, de dinh nghia
+ * Doc cac file .conf trong sim-config/. Dung chung cho moi scenario cua du an,
+ * de dinh nghia
  * tham so khong the lech giua P0, P2 va P8 (PLAN.md muc 3: train va deploy
  * phai tinh feature giong het nhau).
  *
@@ -111,6 +112,7 @@ KnownKeys()
         // --- Cua so feature / nhan (P2)
         "featureWin",
         "labelWin",
+        "aggregateInterval",
         "minRssiSamples",
         "minTrials",
         // --- Cong nghiem thu (Python doc)

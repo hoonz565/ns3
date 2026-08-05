@@ -1,5 +1,12 @@
 # MPC-based Adaptive Hello Interval Control for OLSR in FANETs
 
+> **Thiết kế hiện hành (v2, 2026-08-05):** `Thiet_ke_LinkScore_OLSR_UAV
+> (2).docx` là nguồn chân lý và ghi đè các quyết định v1 bên dưới về cửa sổ
+> và nhãn. Tier 2 dùng W = 1 s, prediction horizon Δ = 1 s, tumbling stride
+> 1 s, 10 aggregate bin × 100 ms; feature ở window t và final-delivery PDR
+> của unique original packet ở window kế tiếp. Artifact/dataset frozen cũ là
+> lịch sử v1, không được trộn với dữ liệu v2.
+
 ## What this project is
 
 A research paper. The **standard OLSR core stays completely unchanged** — MPR

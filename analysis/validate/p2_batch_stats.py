@@ -113,7 +113,7 @@ def main(roots):
     out = {"n_rows": n_rows, "n_seeds": len(n_seeds)}
     print(f"=== {n_rows} dòng, {len(n_seeds)} seed ===\n")
 
-    print("1) rssi_n theo bin (p10/p50/p90) — mẫu RSSI trong cửa sổ 4 s:")
+    print("1) rssi_n theo bin (p10/p50/p90) — aggregate RSSI 100 ms trong cửa sổ 1 s:")
     out["rssi_n"] = {}
     for b in BIN_ORDER:
         xs = sorted(rssi_n_by_bin[b])
